@@ -1,0 +1,30 @@
+{
+  "name": "harmonic-plate",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ckissane/harmonic-plate.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ckissane/harmonic-plate/issues"
+  },
+  "homepage": "https://github.com/ckissane/harmonic-plate#readme",
+  "devDependencies": {
+    "parcel": "^1.12.4"
+  },
+  "dependencies": {
+    "@types/node": "^12.12.14",
+    "getusermedia": "^2.0.1",
+    "gpu.js": "^2.3.0",
+    "mouse-change": "^1.4.0",
+    "regl": "^1.3.13"
+  }
+}

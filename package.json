@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "parcel src/index.html"
+    "start": "parcel src/index.html",
+    "prod":"parcel build src/index.html --public-url='./' --out-dir ./"
   },
   "repository": {
     "type": "git",

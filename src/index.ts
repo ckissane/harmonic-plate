@@ -4,8 +4,9 @@
  <p> This example shows how to use copyTexImage2D to implement feedback effects </p>
  */
 import reglCreate from 'regl';
-// import { GPU } from 'gpu.js';
-// const gpu = new GPU();
+import  GPU  from 'gpu.js';
+// console.log(GPU);
+const gpu = new GPU();
 
 const regl=reglCreate({extensions:['webgl_draw_buffers', 'oes_texture_float','oes_texture_float_linear']});
 // const regl = require('regl')({extensions:["OES_texture_float"]})
@@ -13,24 +14,56 @@ const mouse = require('mouse-change')()
 var subsamp=4096*2;
 var mc=261.625565;
 const gSize=128;
-var simF=mc*gSize;
+var mpp=1.0;//0.5;
+function simF(mp){
+  return mc*gSize/mp
+}
+window.fastMode=false;
+window.simF=simF;
 var samN=0;
 var stepsT=0;
 var stepsQ=0;
 var lastSTm=new Date().getTime();
 var lastFm=new Date().getTime();
-// const iterateBounce = gpu.createKernel(function(a: number[][][]) {
-//   let sum = 0;
-//   if(this.thread.z==0){
-//     sum+=a[this.thread.x][this.thread.y][0]+a[this.thread.x][this.thread.y][1];
-//   }else{
-//     sum+=a[this.thread.x][this.thread.y][1];
-//   }
-//   return sum;
-// }).setOutput([gSize,gSize,2]);
+var vuu=[];
+for(var i=0;i<gSize;i++){
+vuu[i]=[];
+for(var j=0;j<gSize;j++){
+vuu[i][j]=[0.0,0.0];
+}
+}
+const kernel = gpu.createKernel(function(array) {
+  const [first, second] = array;
+  return first + second; 
+}, {
+  output: [2],
+  argumentTypes: { array: 'Array(2)' }
+});
+console.log("K",kernel([1, 2]));
+const iterateBounce = gpu.createKernel(function(a,v:number) {
+  let sum:number = 0.5;
+  let sumv:number = 0.5+v;
+  let me:number=a[this.thread.x][this.thread.y][0]+a[this.thread.x][this.thread.y][0];
+    sum+=me;
+      
+    if(this.thread.x<64.5){
+
+     if(this.thread.x>62.5){
+      if(this.thread.y<64.5){
+
+        if(this.thread.y>62.5){
+      sum=sumv;
+        }
+      }
+    }
+  }
+  return [sum-0.5,a[this.thread.x][this.thread.y][1]];
+},{
+   argumentTypes: { a:'Array3D(2)',v: 'Float'}
+}).setOutput([2,gSize,gSize]);
 
 // const iteratePull = gpu.createKernel(function(a: number[][][]) {
-//   let sum = 0;
+//   let sum:number = 0.5;
 //   if(this.thread.z==1){
 //     sum+=a[this.thread.x][this.thread.y][1];
 //     sum+=-a[this.thread.x][this.thread.y][0];
@@ -41,9 +74,9 @@ var lastFm=new Date().getTime();
 //   }else{
 //     sum+=a[this.thread.x][this.thread.y][0];
 //   }
-//   return sum;
-// }).setOutput([gSize,gSize,2]);
-// window.iterateBounce=iterateBounce;
+//   return sum-0.5;
+// }).setOutput([2,gSize,gSize]).setOutputToTexture(true);
+window.iterateBounce=iterateBounce;
 // window.iteratePull=iteratePull;
 require('getusermedia')({audio: true}, function (err, stream) {
   window.vol=[0.0];
@@ -82,8 +115,17 @@ require('getusermedia')({audio: true}, function (err, stream) {
 nv[i]=vu[i];//Math.sin(Math.PI*2*samN/context.sampleRate*mc)*0.5;//Math.abs(vu[i])<0.0?0:vu[i];
 samN+=1;    
 }
-    stepsT=(((stepsT-vu.length/context.sampleRate)%(1/mc)+(1/mc))%(1/mc));
+if(stepsT*context.sampleRate<window.vol.length && window.fastMode){
+  window.vol=window.vol.concat(nv);//vol.concat(vu);
+}else{
+  if(window.fastMode){
+    stepsT=stepsT-window.vol.length/context.sampleRate;
+    window.vol=nv;
+  }else{
+  stepsT=(((stepsT-vu.length/context.sampleRate)%(1/mc)+(1/mc))%(1/mc));
     window.vol=nv;//vol.concat(vu);//ave*1024;//(ave>0?vu.reduce((a,b)=>Math.max(a,b),0):vu.reduce((a,b)=>Math.min(a,b),0))/2+ave/2;///vu.length*128.0;
+  }
+}
     
     //console.log(vu)
     // rawLeftChannelData is now a typed array with floating point samples
@@ -167,8 +209,9 @@ uniform vec2 res;
 uniform float t;
 uniform float vol;
 varying vec2 uv;
+uniform float mp;
 void main () {
-    float mp=1.0;///2.0;
+    //float mp=0.5;///2.0;
     
     vec2 cVa=texture2D(texture,uv).xy;
     float sX=cVa.x+0.0;
@@ -202,10 +245,11 @@ void main () {
     //}
     float pos=cVa.x-0.5;
     
-    float accel=q/qC-cVa.x;
-    cVa.y+=accel/2.0;
-    float vel=cVa.y+0.0;
-    cVa.y+=accel/2.0;
+    float accel=(q/qC-cVa.x)*mp*mp;
+    float vel=(cVa.y+0.0);//+accel/2.0;
+    cVa.y+=accel;
+    
+    //cVa.y+=accel/2.0;
     //cVa.x+=cVa.y*mp;
     //uVa.x+=uVa.y*mp;
     //lVa.x+=lVa.y*mp;
@@ -220,9 +264,9 @@ void main () {
     }
     gnt=gn;//1.0;//abs(abs(rVa.x-0.5)+abs(lVa.x-0.5)+abs(uVa.x-0.5)+abs(dVa.x-0.5)-abs((rVa.x-0.5)+(lVa.x-0.5)+(uVa.x-0.5)+(dVa.x-0.5))*2.0)+abs(cVa.x-0.5);
     float apRat=pow(abs(-accel/pos),0.5);
-    gnt=pow(pow(pos,2.0)+pow(vel,2.0)/abs(-accel/pos),0.5);
+    gnt=pow(pow(pos,2.0)+pow(vel/mp/mp,2.0)/abs(-accel/mp/mp/pos),0.5);
    
-    cVa.x+=cVa.y*mp;
+    cVa.x+=cVa.y;
     //cVa.y=(vec2(0.5,0.0)*0.001+cVa*0.999).y;
     float j=1.0-length(floor(abs(uv-vec2(0.5))*res.xy-vec2(0.5)));//pow(2.0,-pow(length(abs(uv-vec2(0.5))*res.xy)/10.0,2.0));
     //j=1.0-length(floor(abs(uv)*res.xy));//pow(2.0,-pow(length(abs(uv-vec2(0.5))*res.xy)/10.0,2.0));
@@ -285,7 +329,8 @@ const drawFeedback = regl({
     vol: ()=>{
       return getVolS();
       
-    }
+    },
+    mp:()=>mpp
   },
 
   count: 3
@@ -329,7 +374,7 @@ const drawFeedback2 = regl({
       t: ({tick}) => tick,
       vol: ()=>{
         return getVolS();
-      }
+      },mp:()=>mpp
     },
   
     count: 3
@@ -341,6 +386,7 @@ const drawNi = regl({
     uniform sampler2D texture;
     uniform vec2 mouse;
     uniform vec2 res;
+    uniform vec2 resp;
     uniform float t;
     varying vec2 uv;
     float hue2rgb(float f1, float f2, float hue) {
@@ -382,16 +428,15 @@ const drawNi = regl({
       return rgb;
   }
   
-  
-    void main () {
-        float mp=1.0;
-        float qb=1.5;
+  vec3 normAt(vec2 p){
+    float mp=1.0;
+        float qb=2.0;
         vec2 rc=vec2(min(res.x,res.y));
-        vec2 uv2=(uv-vec2(0.5,0.5)-vec2(0.5,0.5)/res.xy)*res.xy/rc.xy+vec2(0.5,0.5);
-        vec2 up=uv2+vec2(0.0,-1.0)/res.xy*qb;
-        vec2 left=uv2+vec2(-1.0,0.0)/res.xy*qb;
-        vec2 right=uv2+vec2(1.0,0.0)/res.xy*qb;
-        vec2 down=uv2+vec2(0.0,1.0)/res.xy*qb;
+        vec2 uv2=p;
+        vec2 up=uv2+vec2(0.0,-1.0)/resp.xy*qb;
+        vec2 left=uv2+vec2(-1.0,0.0)/resp.xy*qb;
+        vec2 right=uv2+vec2(1.0,0.0)/resp.xy*qb;
+        vec2 down=uv2+vec2(0.0,1.0)/resp.xy*qb;
         vec2 cVa=texture2D(texture,uv2).xy;
         float gn=texture2D(texture,uv2).z;
         float gnB=texture2D(texture,vec2(0.0,0.0)).z;
@@ -413,34 +458,67 @@ const drawNi = regl({
         //dVa.x+=dVa.y*mp;
         vec3 normal=vec3(0.0,0.0,0.0);
         float h=100.0;
-        // gn=1.0;
-        // if(abs(cVa.y)+abs(cVa.x-0.5)<abs(dVa.x-0.5)+abs(dVa.y)){
-        //   gn+=-0.25;
-        // }
-        // if(abs(cVa.y)+abs(cVa.x-0.5)<abs(uVa.x-0.5)+abs(uVa.y)){
-        //   gn+=-0.25;
-        // }
-        // if(abs(cVa.y)+abs(cVa.x-0.5)<abs(lVa.x-0.5)+abs(lVa.y)){
-        //   gn+=-0.25;
-        // }
-        // if(abs(cVa.y)+abs(cVa.x-0.5)<abs(rVa.y)+abs(rVa.x-0.5)){
-        //   gn+=-0.25;
-        // }
+       
         
         
         
         
-        normal+=normalize(vec3(cVa.x-rVa.x,0.0,1.0/h));
-        normal+=normalize(-vec3(cVa.x-lVa.x,0.0,-1.0/h));
-        normal+=normalize(vec3(0.0,cVa.x-dVa.x,1.0/h));
-        normal+=normalize(-vec3(0.0,cVa.x-uVa.x,-1.0/h));
+        normal+=normalize(vec3(gn-texture2D(texture,right).z,0.0,1.0/h));
+        normal+=normalize(-vec3(gn-texture2D(texture,left).z,0.0,-1.0/h));
+        normal+=normalize(vec3(0.0,gn-texture2D(texture,down).z,1.0/h));
+        normal+=normalize(-vec3(0.0,gn-texture2D(texture,up).z,-1.0/h));
         normal=normalize(normal);
+        return normal;
+  }
+    void main () {
+        float mp=1.0;
+        float qb=1.0;
+        vec2 rc=vec2(min(res.x,res.y));
+        vec2 uv2=(uv-vec2(0.5,0.5)-vec2(0.5,0.5)/res.xy)*res.xy/rc.xy+vec2(0.5,0.5);
+        vec2 up=uv2+vec2(0.0,-1.0)/resp.xy*qb;
+        vec2 left=uv2+vec2(-1.0,0.0)/resp.xy*qb;
+        vec2 right=uv2+vec2(1.0,0.0)/resp.xy*qb;
+        vec2 down=uv2+vec2(0.0,1.0)/resp.xy*qb;
+        vec2 cVa=texture2D(texture,uv2).xy;
+        float gn=texture2D(texture,uv2).z;
+        float gnB=texture2D(texture,vec2(0.0,0.0)).z;
+        cVa.y=cVa.y*2.0-1.0;
+        vec2 uVa=texture2D(texture,up).xy;
+        uVa.y=uVa.y*2.0-1.0;
+        vec2 lVa=texture2D(texture,left).xy;
+        lVa.y=lVa.y*2.0-1.0;
+        vec2 rVa=texture2D(texture,right).xy;
+        rVa.y=rVa.y*2.0-1.0;
+        vec2 dVa=texture2D(texture,down).xy;
+        dVa.y=dVa.y*2.0-1.0;
+        vec2 aa=(cVa+uVa+dVa+lVa+rVa)/5.0;
+        
+        //cVa.x+=cVa.y*mp;
+        //uVa.x+=uVa.y*mp;
+        //lVa.x+=lVa.y*mp;
+        //rVa.x+=rVa.y*mp;
+        //dVa.x+=dVa.y*mp;
+        vec3 normal=vec3(0.0);
+        vec3 mep=vec3(uv2,texture2D(texture,uv2).z);
+        for(int i=-3;i<=3;i++){
+          for(int j=-3;j<=3;j++){
+            if(i*i>0 || j*j>0){
+            vec2 op=uv2+vec2(float(i),float(j))/resp.xy*qb;
+            vec2 op2=uv2+vec2(float(j),-float(i))/resp.xy*qb;
+              vec3 opp=vec3(op,texture2D(texture,op).z)-mep;
+              vec3 opp2=vec3(op2,texture2D(texture,op2).z)-mep;
+              normal+=normalize(cross(opp,opp2));
+            }
+          }
+        }
+        normal=normalize(normal);
+        //normalize(normAt(uv2)+normAt(up)+normAt(left)+normAt(down)+normAt(right));
         float colA=atan(normal.y,normal.x)/atan(0.0,-1.0)/2.0;
         if(cVa.y<0.0){
           //colA+=0.5;
           colA=mod(colA,1.0);
         }
-        vec3 col=hsl2rgb(vec3(mod(colA*2.0,1.0),1.0,min(max(0.5-gn/gnB,0.0)*2.0,1.0)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
+        vec3 col=hsl2rgb(vec3(mod(colA*1.0,1.0),1.0,min(max(0.5-gn/gnB,0.0)*2.0,1.0)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
       gl_FragColor = vec4(vec3(dot(normal,normalize(vec3(-1.0,2.0,1.0)))*0.5)*col*0.0+col,1.0);
       vec2 uvc=(uv2-vec2(0.5,0.5))*2.0;
       if(max(abs(uvc.x),abs(uvc.y))>1.0){
@@ -478,6 +556,9 @@ const drawNi = regl({
          viewportWidth,
           viewportHeight
         ],
+        resp: ({viewportHeight,viewportWidth}) => [
+          gSize,gSize
+         ],
       t: ({tick}) => tick
     },
   
@@ -489,39 +570,57 @@ regl.frame(function () {
 //   regl.clear({
 //     color: [0.5, 0.5, 0.5, 1]
 //   })
-var tm=new Date().getTime();
-while(lastSTm<tm){
-  lastSTm+=1000/simF;
-  stepsT+=1/mc/gSize;
+// var tm=new Date().getTime();//*2-lastSTm;
+// while(lastSTm<tm){
+//   lastSTm+=1000/simF(mpp);
+//   stepsT+=1/simF(mpp);
+//   stepsQ+=1;
+//   // if(tm-lastSTm>1000){
+//   //  console.log("sps",stepsQ,"need",mc*gSize,context.sampleRate/(mc*gSize))
+//   //   lastSTm=tm;
+//   //   stepsQ=0;
+//   // }
+//   (flips++)%2===0?drawFeedback():drawFeedback2();
+//   if(new Date().getTime()-tm>1000/60){
+//     break;
+//   }
+// }
+
+for(var i=0;i<1024;i++){
   stepsQ+=1;
+  if(stepsT*context.sampleRate<window.vol.length){
+  
+  // var tm=new Date().getTime();
   // if(tm-lastSTm>1000){
-  //  console.log("sps",stepsQ,"need",mc*gSize,context.sampleRate/(mc*gSize))
+  //  console.log("sps2",stepsQ,"need",mc*gSize,context.sampleRate/(mc*gSize))
   //   lastSTm=tm;
   //   stepsQ=0;
   // }
   (flips++)%2===0?drawFeedback():drawFeedback2();
-  if(new Date().getTime()-tm>1000/60){
-    break;
+  stepsT+=1/simF(mpp);
   }
+  window.gd=[stepsT*context.sampleRate,window.vol.length]
 }
 var tm=new Date().getTime();
-//   if(tm-lastFm>1000){
-//    console.log("sps",stepsQ,"need",mc*gSize,context.sampleRate/(mc*gSize))
-//     lastFm=tm;
-//     stepsQ=0;
-//   }
+  if(tm-lastFm>1000){
+   console.log("sps",stepsQ,"need",mc*gSize,context.sampleRate/(mc*gSize))
+    lastFm=tm;
+    var sr=0;//Math.log(stepsQ/context.sampleRate)/Math.log(2);
+    sr=Math.min(Math.floor(sr),0);
+    var subSuper=Math.floor(context.sampleRate);
+    if(stepsQ>=subSuper){
+      mpp=Math.max(mc*gSize/subSuper,0.1);
+      console.log("subSuper",subSuper,"stepsQ",stepsQ)
+      window.fastMode=true;
+    }else{
+      mpp=1;
+      window.fastMode=false;
+    }
+    stepsQ=0;
+  }
+  window.mpp=mpp;
 lastSTm=tm;
-// for(var i=0;i<128;i++){
-//   stepsT+=1/mc/gSize;
-//   stepsQ+=1;
-//   var tm=new Date().getTime();
-//   if(tm-lastSTm>1000){
-//    console.log("sps",stepsQ,"need",mc*gSize,context.sampleRate/(mc*gSize))
-//     lastSTm=tm;
-//     stepsQ=0;
-//   }
-//   (flips++)%2===0?drawFeedback():drawFeedback2();
-// }
+
 drawNi();
 //   pixels({
 //     copy: true

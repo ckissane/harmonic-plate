@@ -681,8 +681,8 @@ var vr=`
         vec3 mep=vec3(uv2,texture2D(texture,uv2).z/gnB);
         float hb=0.0;
         float tt=0.0;
-        for(int i=-1;i<=1;i++){
-          for(int j=-1;j<=1;j++){
+        for(int i=-2;i<=2;i++){
+          for(int j=-2;j<=2;j++){
             if((i*i>0 || j*j>0 )){
               
             vec2 op=uv2+vec2(float(i),float(j))/resp.xy*qb;
@@ -714,8 +714,8 @@ var vr=`
         gn=hb/tt*2.0-1.0;
         vec3 col=hsl2rgb(vec3(mod(colA,1.0),1.0,min(max(gn,0.0),1.0)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
       gl_FragColor = vec4(vec3(dot(normal,normalize(vec3(-1.0,2.0,1.0)))*0.5)*col*0.0+col,1.0);
-      gl_FragColor=vec4(vec3(1.0-texture2D(texture,uv2).z/texture2D(texture,vec2(0.0)).z,1.0-texture2D(textureB,uv2).z/texture2D(textureB,vec2(0.0)).z,1.0-texture2D(textureC,uv2).z/texture2D(textureC,vec2(0.0)).z),1.0);
-      gl_FragColor=vec4(vec3(texture2D(texture,uv2).z,texture2D(textureB,uv2).z,texture2D(textureC,uv2).z),1.0);
+      //gl_FragColor=vec4(vec3(1.0-texture2D(texture,uv2).z/texture2D(texture,vec2(0.0)).z,1.0-texture2D(textureB,uv2).z/texture2D(textureB,vec2(0.0)).z,1.0-texture2D(textureC,uv2).z/texture2D(textureC,vec2(0.0)).z),1.0);
+    //gl_FragColor=vec4(vec3(texture2D(texture,uv2).z,texture2D(textureB,uv2).z,texture2D(textureC,uv2).z),1.0);
      
       vec2 uvc=(uv2-vec2(0.5,0.5))*2.0;
       if(max(abs(uvc.x),abs(uvc.y))>1.0){

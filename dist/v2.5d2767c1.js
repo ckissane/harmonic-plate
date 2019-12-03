@@ -35725,7 +35725,7 @@ module.exports = function (constraints, cb) {
     });
 };
 
-},{"webrtc-adapter":"../node_modules/webrtc-adapter/src/js/adapter_core.js"}],"index.ts":[function(require,module,exports) {
+},{"webrtc-adapter":"../node_modules/webrtc-adapter/src/js/adapter_core.js"}],"v2.ts":[function(require,module,exports) {
 "use strict";
 
 var __importDefault = this && this.__importDefault || function (mod) {
@@ -35749,6 +35749,7 @@ var gpu_js_1 = __importDefault(require("gpu.js")); // console.log(GPU);
 
 
 var gpu = new gpu_js_1.default();
+window.vScale = 1.0;
 var regl = regl_1.default({
   extensions: ['webgl_draw_buffers', 'oes_texture_float', 'oes_texture_float_linear']
 }); // const regl = require('regl')({extensions:["OES_texture_float"]})
@@ -35866,13 +35867,14 @@ require('getusermedia')({
   captureNode.onaudioprocess = function (e) {
     // console.log("HI")
     var vu = e.inputBuffer.getChannelData(0);
-    var ave = vu.reduce(function (a, b) {
+    var ave = vu.map(Math.abs).reduce(function (a, b) {
       return a + b;
     }, 0) / vu.length;
+    window.vScale = window.vScale * 0.1 + 1 / Math.max(ave, 0.01) * 0.9;
     var nv = [];
 
     for (var i = 0; i < vu.length; i++) {
-      nv[i] = true ? vu[i] : Math.sin(Math.PI * 2 * samN / context.sampleRate * fund * window.mul) * 0.5; //Math.abs(vu[i])<0.0?0:vu[i];
+      nv[i] = true ? vu[i] * window.vScale : Math.sin(Math.PI * 2 * samN / context.sampleRate * fund * window.mul) * 0.5; //Math.abs(vu[i])<0.0?0:vu[i];
 
       samN += 1;
     }
@@ -35933,6 +35935,42 @@ require('getusermedia')({
       mag: 'linear'
     }),
     depthStencil: false
+  });
+  var fboB = regl.framebuffer({
+    color: regl.texture({
+      type: 'float',
+      width: gSize,
+      height: gSize,
+      mag: 'linear'
+    }),
+    depthStencil: false
+  });
+  var fboB2 = regl.framebuffer({
+    color: regl.texture({
+      type: 'float',
+      width: gSize,
+      height: gSize,
+      mag: 'linear'
+    }),
+    depthStencil: false
+  });
+  var fboC = regl.framebuffer({
+    color: regl.texture({
+      type: 'float',
+      width: gSize,
+      height: gSize,
+      mag: 'linear'
+    }),
+    depthStencil: false
+  });
+  var fboC2 = regl.framebuffer({
+    color: regl.texture({
+      type: 'float',
+      width: gSize,
+      height: gSize,
+      mag: 'linear'
+    }),
+    depthStencil: false
   }); // function doubleFbo(filter) {
   // 	let fbos = [createFbo(filter), createFbo(filter)];
   // 	return {
@@ -35967,10 +36005,11 @@ require('getusermedia')({
   // 	});
   // }
 
-  var fr = "\nprecision mediump float;\nuniform sampler2D texture;\nuniform vec2 mouse;\nuniform vec2 res;\nuniform float t;\nuniform float vol;\nvarying vec2 uv;\nuniform float mp;\nvoid main () {\n    //float mp=0.5;///2.0;\n    \n    vec2 cVa=texture2D(texture,uv).xy;\n    vec2 cVa0=texture2D(texture,uv).xy;\n    float sX=cVa.x+0.0;\n    float gn=texture2D(texture,uv).z;\n    cVa.y=cVa.y*2.0-1.0;\n    cVa0.y=cVa0.y*2.0-1.0;\n    \n    float q=0.0;\n    float qC=0.0;\n    int i=1;\n   // for(int i=1;i<2;i++){\n      float s=float(i);\n      float c=1.0/(s);\n    vec2 up=uv+vec2(0.0,-1.0)/res.xy*s;\n    vec2 left=uv+vec2(-1.0,0.0)/res.xy*s;\n    vec2 right=uv+vec2(1.0,0.0)/res.xy*s;\n    vec2 down=uv+vec2(0.0,1.0)/res.xy*s;\n    \n    vec2 uVa=texture2D(texture,up).xy;\n    uVa.y=uVa.y*2.0-1.0;\n    vec2 lVa=texture2D(texture,left).xy;\n    lVa.y=lVa.y*2.0-1.0;\n    vec2 rVa=texture2D(texture,right).xy;\n    rVa.y=rVa.y*2.0-1.0;\n    vec2 dVa=texture2D(texture,down).xy;\n    dVa.y=dVa.y*2.0-1.0;\n    q+=(dVa.x)*c;\n    q+=(uVa.x)*c;\n    q+=(lVa.x)*c;\n    q+=(rVa.x)*c;\n    qC+=c*4.0;\n    //}\n    float pos=cVa.x-0.5;\n    \n    float accel=(q/qC-cVa.x)*mp*mp;\n    float vel=(cVa.y+0.0);//+accel/2.0;\n    cVa.y+=accel;\n    \n    //cVa.y+=accel/2.0;\n    //cVa.x+=cVa.y*mp;\n    //uVa.x+=uVa.y*mp;\n    //lVa.x+=lVa.y*mp;\n    //rVa.x+=rVa.y*mp;\n    //dVa.x+=dVa.y*mp;\n    \n    float gnt=0.0;\n   \n    if(t<20.0){\n        cVa=vec2(0.5,0.0);\n        //gn=0.0;\n    }\n    gnt=gn;//1.0;//abs(abs(rVa.x-0.5)+abs(lVa.x-0.5)+abs(uVa.x-0.5)+abs(dVa.x-0.5)-abs((rVa.x-0.5)+(lVa.x-0.5)+(uVa.x-0.5)+(dVa.x-0.5))*2.0)+abs(cVa.x-0.5);\n    float apRat=pow(abs(-accel/pos),0.5);\n    gnt=pow(pow(pos,2.0)+pow(vel/mp/mp,2.0)/abs(-accel/mp/mp/pos),0.5);\n   \n    \n    //cVa.y=(vec2(0.5,0.0)*0.001+cVa*0.999).y;\n    float j=1.0-length(floor(abs(uv-vec2(0.5))*res.xy))*100.0;//pow(2.0,-pow(length(abs(uv-vec2(0.5))*res.xy)/10.0,2.0));\n    //j=1.0-length(floor(abs(uv-vec2(0.0,1.0))*res.xy));//pow(2.0,-pow(length(abs(uv-vec2(0.5))*res.xy)/10.0,2.0));\n    cVa.x+=cVa.y;\n    if( j>0.0 ){\n    j=1.0;\n    // cVa.y+=vol/2.0+0.5-cVa.x;\n      cVa.x=cVa.x*(1.0-j)+vec2(vol/2.0+0.5,0.0).x*j;//cos(t*0.1*2.0*atan(0.0,-1.0))/4.0+0.5;\n      //cVa.y=0.0;//-2.0*atan(0.0,-1.0)*0.01*sin(t*0.01*2.0*atan(0.0,-1.0))/2.0+0.5;\n    }\n    \n    if(t<20.0){\n      gn=0.5;\n    }\n    if(gnt<1.0){\n      float le=abs(pos-0.5)+0.00001;\n      gn=abs(gnt*le+gn*(1.0-le));\n    }\n    \n    \n    if(t<20.0){\n      gn=0.5;\n    }\n    cVa=(vec2(0.5,0.0)*0.001+cVa*0.999);\n  gl_FragColor = vec4(vec3(cVa.x,cVa.y*0.5+0.5,gn),1.0);\n}";
-  var drawFeedback = regl({
+  var fr = "\nprecision mediump float;\nuniform sampler2D texture;\nuniform vec2 mouse;\nuniform vec2 res;\nuniform float t;\nuniform float vol;\nvarying vec2 uv;\nuniform float mp;\nvoid main () {\n    //float mp=0.5;///2.0;\n    \n    vec2 cVa=texture2D(texture,uv).xy;\n    vec2 cVa0=texture2D(texture,uv).xy;\n    float sX=cVa.x+0.0;\n    float gn=texture2D(texture,uv).z;\n    cVa.y=cVa.y*2.0-1.0;\n    cVa0.y=cVa0.y*2.0-1.0;\n    \n    float q=0.0;\n    float qC=0.0;\n    int i=1;\n   // for(int i=1;i<2;i++){\n      float s=float(i);\n      float c=1.0/(s);\n    vec2 up=uv+vec2(0.0,-1.0)/res.xy*s;\n    vec2 left=uv+vec2(-1.0,0.0)/res.xy*s;\n    vec2 right=uv+vec2(1.0,0.0)/res.xy*s;\n    vec2 down=uv+vec2(0.0,1.0)/res.xy*s;\n    \n    vec2 uVa=texture2D(texture,up).xy;\n    uVa.y=uVa.y*2.0-1.0;\n    vec2 lVa=texture2D(texture,left).xy;\n    lVa.y=lVa.y*2.0-1.0;\n    vec2 rVa=texture2D(texture,right).xy;\n    rVa.y=rVa.y*2.0-1.0;\n    vec2 dVa=texture2D(texture,down).xy;\n    dVa.y=dVa.y*2.0-1.0;\n    q+=(dVa.x)*c;\n    q+=(uVa.x)*c;\n    q+=(lVa.x)*c;\n    q+=(rVa.x)*c;\n    qC+=c*4.0;\n    //}\n    float pos=cVa.x-0.5;\n    \n    float accel=(q/qC-cVa.x)*mp*mp;\n    float vel=(cVa.y+0.0)+accel/2.0;\n    cVa.y+=accel;\n    \n    //cVa.y+=accel/2.0;\n    //cVa.x+=cVa.y*mp;\n    //uVa.x+=uVa.y*mp;\n    //lVa.x+=lVa.y*mp;\n    //rVa.x+=rVa.y*mp;\n    //dVa.x+=dVa.y*mp;\n    \n    float gnt=0.0;\n   \n    if(t<20.0){\n        cVa=vec2(0.5,0.0);\n        pos=0.0;\n        //gn=0.0;\n    }\n    gnt=gn;//1.0;//abs(abs(rVa.x-0.5)+abs(lVa.x-0.5)+abs(uVa.x-0.5)+abs(dVa.x-0.5)-abs((rVa.x-0.5)+(lVa.x-0.5)+(uVa.x-0.5)+(dVa.x-0.5))*2.0)+abs(cVa.x-0.5);\n    float apRat=pow(abs(-accel/mp/mp/pos),0.5);\n    gnt=pow(pow(pos,2.0)+pow(vel/mp/mp,2.0)/abs(-accel/mp/mp/pos),0.5);\n   \n    \n    //cVa.y=(vec2(0.5,0.0)*0.001+cVa*0.999).y;\n    float j=1.0-length(floor(abs(uv-vec2(0.5))*res.xy))*100.0;//pow(2.0,-pow(length(abs(uv-vec2(0.5))*res.xy)/10.0,2.0));\n    //j=1.0-length(floor(abs(uv-vec2(0.0,1.0))*res.xy));//pow(2.0,-pow(length(abs(uv-vec2(0.5))*res.xy)/10.0,2.0));\n    cVa.x+=cVa.y;\n    if( j>0.0 ){\n    j=1.0;\n    // cVa.y+=vol/2.0+0.5-cVa.x;\n      cVa.x=cVa.x*(1.0-j)+vec2(vol/2.0+0.5,0.0).x*j;//cos(t*0.1*2.0*atan(0.0,-1.0))/4.0+0.5;\n      //cVa.y=0.0;//-2.0*atan(0.0,-1.0)*0.01*sin(t*0.01*2.0*atan(0.0,-1.0))/2.0+0.5;\n    }\n    \n    if(t<20.0){\n      gn=abs(pos)*8.0;\n    }\n    if(gnt<1.0){//} && (abs(vel+pos)<=abs(pos) && abs(vel+pos-accel/2.0)>=abs(pos))){\n    \n      gnt=(abs(pos)*2.0+gnt)/2.0;//(abs(pos)+abs(uVa.x-0.5)+abs(lVa.x-0.5)+abs(dVa.x-0.5)+abs(rVa.x-0.5))/5.0;//gnt*8.0;//abs(pos);\n      float le=max(0.001,0.0);//max(min((1.0-pow(0.5,1.0*apRat/100.0)),0.01),0.00001);//min(abs(vel*2.0+pos-0.5)/abs(pos-0.5)*0.001+0.00001,1.0);\n      gnt=gnt;\n      gn=abs(gnt*le+gn*(1.0-le));\n    }\n    if(length(floor(abs(uv-vec2(0.0,0.0))*res.xy))<1.0){\n      //gn=0.05;\n    }\n    \n    if(t<20.0){\n      gn=0.0;\n    }\n    if(pos*vel>0.0){\n    cVa=(vec2(0.5,0.0)*0.001+cVa*0.999);\n    }\n  gl_FragColor = vec4(vec3(cVa.x,cVa.y*0.5+0.5,gn),1.0);\n}";
+  var vr = "\n\n  precision mediump float;\n  attribute vec2 position;\n  varying vec2 uv;\n  void main () {\n    uv = position/2.0+vec2(0.5,0.5);\n    gl_Position = vec4(position, 0, 1);\n  }\n  ";
+  var drawFeedback = [regl({
     frag: fr,
-    vert: "\n  precision mediump float;\n  attribute vec2 position;\n  varying vec2 uv;\n  void main () {\n    uv = position/2.0+vec2(0.5,0.5);\n    gl_Position = vec4(position, 0, 1);\n  }",
+    vert: vr,
     attributes: {
       position: [-1, -1, 3, -1, -1, 3]
     },
@@ -36002,10 +36041,9 @@ require('getusermedia')({
       }
     },
     count: 3
-  });
-  var drawFeedback2 = regl({
+  }), regl({
     frag: fr,
-    vert: "\n    precision mediump float;\n    attribute vec2 position;\n    varying vec2 uv;\n    void main () {\n      uv = position/2.0+vec2(0.5,0.5);\n      gl_Position = vec4(position, 0, 1);\n    }",
+    vert: vr,
     attributes: {
       position: [-1, -1, 3, -1, -1, 3]
     },
@@ -36037,15 +36075,155 @@ require('getusermedia')({
       }
     },
     count: 3
-  });
+  })];
+  var drawFeedbackB = [regl({
+    frag: fr,
+    vert: vr,
+    attributes: {
+      position: [-1, -1, 3, -1, -1, 3]
+    },
+    framebuffer: fboB,
+    uniforms: {
+      texture: fboB2,
+      mouse: function mouse(_a) {
+        var pixelRatio = _a.pixelRatio,
+            viewportHeight = _a.viewportHeight,
+            viewportWidth = _a.viewportWidth;
+        return [_mouse.x * pixelRatio, viewportHeight - _mouse.y * pixelRatio];
+      },
+      res: function res(_a) {
+        var viewportHeight = _a.viewportHeight,
+            viewportWidth = _a.viewportWidth;
+        return [gSize, gSize // viewportWidth,
+        // viewportHeight
+        ];
+      },
+      t: function t(_a) {
+        var tick = _a.tick;
+        return tick;
+      },
+      vol: function vol() {
+        return getVolS();
+      },
+      mp: function mp() {
+        return mpp / 2;
+      }
+    },
+    count: 3
+  }), regl({
+    frag: fr,
+    vert: vr,
+    attributes: {
+      position: [-1, -1, 3, -1, -1, 3]
+    },
+    framebuffer: fboB2,
+    uniforms: {
+      texture: fboB,
+      mouse: function mouse(_a) {
+        var pixelRatio = _a.pixelRatio,
+            viewportHeight = _a.viewportHeight,
+            viewportWidth = _a.viewportWidth;
+        return [_mouse.x * pixelRatio, viewportHeight - _mouse.y * pixelRatio];
+      },
+      res: function res(_a) {
+        var viewportHeight = _a.viewportHeight,
+            viewportWidth = _a.viewportWidth;
+        return [gSize, gSize // viewportWidth,
+        // viewportHeight
+        ];
+      },
+      t: function t(_a) {
+        var tick = _a.tick;
+        return tick;
+      },
+      vol: function vol() {
+        return getVolS();
+      },
+      mp: function mp() {
+        return mpp / 2;
+      }
+    },
+    count: 3
+  })];
+  var drawFeedbackC = [regl({
+    frag: fr,
+    vert: vr,
+    attributes: {
+      position: [-1, -1, 3, -1, -1, 3]
+    },
+    framebuffer: fboC,
+    uniforms: {
+      texture: fboC2,
+      mouse: function mouse(_a) {
+        var pixelRatio = _a.pixelRatio,
+            viewportHeight = _a.viewportHeight,
+            viewportWidth = _a.viewportWidth;
+        return [_mouse.x * pixelRatio, viewportHeight - _mouse.y * pixelRatio];
+      },
+      res: function res(_a) {
+        var viewportHeight = _a.viewportHeight,
+            viewportWidth = _a.viewportWidth;
+        return [gSize, gSize // viewportWidth,
+        // viewportHeight
+        ];
+      },
+      t: function t(_a) {
+        var tick = _a.tick;
+        return tick;
+      },
+      vol: function vol() {
+        return getVolS();
+      },
+      mp: function mp() {
+        return mpp / 4;
+      }
+    },
+    count: 3
+  }), regl({
+    frag: fr,
+    vert: vr,
+    attributes: {
+      position: [-1, -1, 3, -1, -1, 3]
+    },
+    framebuffer: fboC2,
+    uniforms: {
+      texture: fboC,
+      mouse: function mouse(_a) {
+        var pixelRatio = _a.pixelRatio,
+            viewportHeight = _a.viewportHeight,
+            viewportWidth = _a.viewportWidth;
+        return [_mouse.x * pixelRatio, viewportHeight - _mouse.y * pixelRatio];
+      },
+      res: function res(_a) {
+        var viewportHeight = _a.viewportHeight,
+            viewportWidth = _a.viewportWidth;
+        return [gSize, gSize // viewportWidth,
+        // viewportHeight
+        ];
+      },
+      t: function t(_a) {
+        var tick = _a.tick;
+        return tick;
+      },
+      vol: function vol() {
+        return getVolS();
+      },
+      mp: function mp() {
+        return mpp / 4;
+      }
+    },
+    count: 3
+  })];
   var drawNi = regl({
-    frag: "\n    precision mediump float;\n    uniform sampler2D texture;\n    uniform vec2 mouse;\n    uniform vec2 res;\n    uniform vec2 resp;\n    uniform float t;\n    varying vec2 uv;\n    float hue2rgb(float f1, float f2, float hue) {\n      if (hue < 0.0)\n          hue += 1.0;\n      else if (hue > 1.0)\n          hue -= 1.0;\n      float res;\n      if ((6.0 * hue) < 1.0)\n          res = f1 + (f2 - f1) * 6.0 * hue;\n      else if ((2.0 * hue) < 1.0)\n          res = f2;\n      else if ((3.0 * hue) < 2.0)\n          res = f1 + (f2 - f1) * ((2.0 / 3.0) - hue) * 6.0;\n      else\n          res = f1;\n      return res;\n  }\n  \n  vec3 hsl2rgb(vec3 hsl) {\n      vec3 rgb;\n      \n      if (hsl.y == 0.0) {\n          rgb = vec3(hsl.z); // Luminance\n      } else {\n          float f2;\n          \n          if (hsl.z < 0.5)\n              f2 = hsl.z * (1.0 + hsl.y);\n          else\n              f2 = hsl.z + hsl.y - hsl.y * hsl.z;\n              \n          float f1 = 2.0 * hsl.z - f2;\n          \n          rgb.r = hue2rgb(f1, f2, hsl.x + (1.0/3.0));\n          rgb.g = hue2rgb(f1, f2, hsl.x);\n          rgb.b = hue2rgb(f1, f2, hsl.x - (1.0/3.0));\n      }   \n      return rgb;\n  }\n  \n  vec3 normAt(vec2 p){\n    float mp=1.0;\n        float qb=2.0;\n        vec2 rc=vec2(min(res.x,res.y));\n        vec2 uv2=p;\n        vec2 up=uv2+vec2(0.0,-1.0)/resp.xy*qb;\n        vec2 left=uv2+vec2(-1.0,0.0)/resp.xy*qb;\n        vec2 right=uv2+vec2(1.0,0.0)/resp.xy*qb;\n        vec2 down=uv2+vec2(0.0,1.0)/resp.xy*qb;\n        vec2 cVa=texture2D(texture,uv2).xy;\n        float gn=texture2D(texture,uv2).z;\n        float gnB=texture2D(texture,vec2(0.0,0.0)).z;\n        cVa.y=cVa.y*2.0-1.0;\n        vec2 uVa=texture2D(texture,up).xy;\n        uVa.y=uVa.y*2.0-1.0;\n        vec2 lVa=texture2D(texture,left).xy;\n        lVa.y=lVa.y*2.0-1.0;\n        vec2 rVa=texture2D(texture,right).xy;\n        rVa.y=rVa.y*2.0-1.0;\n        vec2 dVa=texture2D(texture,down).xy;\n        dVa.y=dVa.y*2.0-1.0;\n        vec2 aa=(cVa+uVa+dVa+lVa+rVa)/5.0;\n        \n        //cVa.x+=cVa.y*mp;\n        //uVa.x+=uVa.y*mp;\n        //lVa.x+=lVa.y*mp;\n        //rVa.x+=rVa.y*mp;\n        //dVa.x+=dVa.y*mp;\n        vec3 normal=vec3(0.0,0.0,0.0);\n        float h=100.0;\n       \n        \n        \n        \n        \n        normal+=normalize(vec3(gn-texture2D(texture,right).z,0.0,1.0/h));\n        normal+=normalize(-vec3(gn-texture2D(texture,left).z,0.0,-1.0/h));\n        normal+=normalize(vec3(0.0,gn-texture2D(texture,down).z,1.0/h));\n        normal+=normalize(-vec3(0.0,gn-texture2D(texture,up).z,-1.0/h));\n        normal=normalize(normal);\n        return normal;\n  }\n    void main () {\n        float mp=1.0;\n        float qb=1.0;\n        vec2 rc=vec2(min(res.x,res.y));\n        vec2 uv2=(uv-vec2(0.5,0.5)-vec2(0.5,0.5)/res.xy*0.0)*res.xy/rc.xy+vec2(0.5,0.5);\n        vec2 up=uv2+vec2(0.0,-1.0)/resp.xy*qb;\n        vec2 left=uv2+vec2(-1.0,0.0)/resp.xy*qb;\n        vec2 right=uv2+vec2(1.0,0.0)/resp.xy*qb;\n        vec2 down=uv2+vec2(0.0,1.0)/resp.xy*qb;\n        vec2 cVa=texture2D(texture,uv2).xy;\n        float gn=texture2D(texture,uv2).z;\n        float gnB=texture2D(texture,vec2(0.0,0.0)).z;\n        cVa.y=cVa.y*2.0-1.0;\n        vec2 uVa=texture2D(texture,up).xy;\n        uVa.y=uVa.y*2.0-1.0;\n        vec2 lVa=texture2D(texture,left).xy;\n        lVa.y=lVa.y*2.0-1.0;\n        vec2 rVa=texture2D(texture,right).xy;\n        rVa.y=rVa.y*2.0-1.0;\n        vec2 dVa=texture2D(texture,down).xy;\n        dVa.y=dVa.y*2.0-1.0;\n        vec2 aa=(cVa+uVa+dVa+lVa+rVa)/5.0;\n        \n        //cVa.x+=cVa.y*mp;\n        //uVa.x+=uVa.y*mp;\n        //lVa.x+=lVa.y*mp;\n        //rVa.x+=rVa.y*mp;\n        //dVa.x+=dVa.y*mp;\n        vec3 normal=vec3(0.0);\n        vec3 mep=vec3(uv2,texture2D(texture,uv2).z/gnB);\n        float hb=0.0;\n        float tt=0.0;\n        for(int i=-1;i<=1;i++){\n          for(int j=-1;j<=1;j++){\n            if((i*i>0 || j*j>0 )){\n              \n            vec2 op=uv2+vec2(float(i),float(j))/resp.xy*qb;\n            vec2 op2=uv2+vec2(float(j),-float(i))/resp.xy*qb;\n            float pV=1.0/pow(length(op),2.0);\n            tt+=pV;\n            if(texture2D(texture,op).z>gn){// && texture2D(texture,uv2-op*2.0).z>gn){\n              hb+=pV;\n            }\n            \n            //hb=hb+texture2D(texture,op).z/gnB;\n              vec3 opp=vec3(op,texture2D(texture,op).z/gnB)-mep;\n              vec3 opp2=vec3(op2,texture2D(texture,op2).z/gnB)-mep;\n              normal+=normalize(cross(opp,opp2));\n            }\n          }\n        }\n        normal=normalize(normal);\n        //normalize(normAt(uv2)+normAt(up)+normAt(left)+normAt(down)+normAt(right));\n        float colA=atan(normal.y,normal.x)/atan(0.0,-1.0)/2.0;\n        if(cVa.y<0.0){\n          //colA+=0.5;\n          colA=mod(colA,1.0);\n        }\n        if(gnB*0.5<gn){\n          normal=-normal;\n        }\n       \n        gn=hb/tt*2.0-1.0;\n        vec3 col=hsl2rgb(vec3(mod(colA,1.0),1.0,min(max(gn,0.0),1.0)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));\n      gl_FragColor = vec4(vec3(dot(normal,normalize(vec3(-1.0,2.0,1.0)))*0.5)*col*0.0+col,1.0);\n      vec2 uvc=(uv2-vec2(0.5,0.5))*2.0;\n      if(max(abs(uvc.x),abs(uvc.y))>1.0){\n        gl_FragColor = vec4(vec3(0.0),1.0);\n      }\n    }",
+    frag: "\n    precision mediump float;\n    uniform sampler2D texture;\n    uniform sampler2D textureB;\n    uniform sampler2D textureC;\n    uniform vec2 mouse;\n    uniform vec2 res;\n    uniform vec2 resp;\n    uniform float t;\n    varying vec2 uv;\n    float hue2rgb(float f1, float f2, float hue) {\n      if (hue < 0.0)\n          hue += 1.0;\n      else if (hue > 1.0)\n          hue -= 1.0;\n      float res;\n      if ((6.0 * hue) < 1.0)\n          res = f1 + (f2 - f1) * 6.0 * hue;\n      else if ((2.0 * hue) < 1.0)\n          res = f2;\n      else if ((3.0 * hue) < 2.0)\n          res = f1 + (f2 - f1) * ((2.0 / 3.0) - hue) * 6.0;\n      else\n          res = f1;\n      return res;\n  }\n  \n  vec3 hsl2rgb(vec3 hsl) {\n      vec3 rgb;\n      \n      if (hsl.y == 0.0) {\n          rgb = vec3(hsl.z); // Luminance\n      } else {\n          float f2;\n          \n          if (hsl.z < 0.5)\n              f2 = hsl.z * (1.0 + hsl.y);\n          else\n              f2 = hsl.z + hsl.y - hsl.y * hsl.z;\n              \n          float f1 = 2.0 * hsl.z - f2;\n          \n          rgb.r = hue2rgb(f1, f2, hsl.x + (1.0/3.0));\n          rgb.g = hue2rgb(f1, f2, hsl.x);\n          rgb.b = hue2rgb(f1, f2, hsl.x - (1.0/3.0));\n      }   \n      return rgb;\n  }\n  \n  vec3 normAt(vec2 p){\n    float mp=1.0;\n        float qb=2.0;\n        vec2 rc=vec2(min(res.x,res.y));\n        vec2 uv2=p;\n        vec2 up=uv2+vec2(0.0,-1.0)/resp.xy*qb;\n        vec2 left=uv2+vec2(-1.0,0.0)/resp.xy*qb;\n        vec2 right=uv2+vec2(1.0,0.0)/resp.xy*qb;\n        vec2 down=uv2+vec2(0.0,1.0)/resp.xy*qb;\n        vec2 cVa=texture2D(texture,uv2).xy;\n        float gn=texture2D(texture,uv2).z;\n        float gnB=texture2D(texture,vec2(0.0,0.0)).z;\n        cVa.y=cVa.y*2.0-1.0;\n        vec2 uVa=texture2D(texture,up).xy;\n        uVa.y=uVa.y*2.0-1.0;\n        vec2 lVa=texture2D(texture,left).xy;\n        lVa.y=lVa.y*2.0-1.0;\n        vec2 rVa=texture2D(texture,right).xy;\n        rVa.y=rVa.y*2.0-1.0;\n        vec2 dVa=texture2D(texture,down).xy;\n        dVa.y=dVa.y*2.0-1.0;\n        vec2 aa=(cVa+uVa+dVa+lVa+rVa)/5.0;\n        \n        //cVa.x+=cVa.y*mp;\n        //uVa.x+=uVa.y*mp;\n        //lVa.x+=lVa.y*mp;\n        //rVa.x+=rVa.y*mp;\n        //dVa.x+=dVa.y*mp;\n        vec3 normal=vec3(0.0,0.0,0.0);\n        float h=100.0;\n       \n        \n        \n        \n        \n        normal+=normalize(vec3(gn-texture2D(texture,right).z,0.0,1.0/h));\n        normal+=normalize(-vec3(gn-texture2D(texture,left).z,0.0,-1.0/h));\n        normal+=normalize(vec3(0.0,gn-texture2D(texture,down).z,1.0/h));\n        normal+=normalize(-vec3(0.0,gn-texture2D(texture,up).z,-1.0/h));\n        normal=normalize(normal);\n        return normal;\n  }\n    void main () {\n        float mp=1.0;\n        float qb=1.0;\n        vec2 rc=vec2(min(res.x,res.y));\n        vec2 uv2=(uv-vec2(0.5,0.5)-vec2(0.5,0.5)/res.xy*0.0)*res.xy/rc.xy+vec2(0.5,0.5);\n        vec2 up=uv2+vec2(0.0,-1.0)/resp.xy*qb;\n        vec2 left=uv2+vec2(-1.0,0.0)/resp.xy*qb;\n        vec2 right=uv2+vec2(1.0,0.0)/resp.xy*qb;\n        vec2 down=uv2+vec2(0.0,1.0)/resp.xy*qb;\n        vec2 cVa=texture2D(texture,uv2).xy;\n        float gn=texture2D(texture,uv2).z;\n        float gnB=texture2D(texture,vec2(0.0,0.0)).z;\n        cVa.y=cVa.y*2.0-1.0;\n        vec2 uVa=texture2D(texture,up).xy;\n        uVa.y=uVa.y*2.0-1.0;\n        vec2 lVa=texture2D(texture,left).xy;\n        lVa.y=lVa.y*2.0-1.0;\n        vec2 rVa=texture2D(texture,right).xy;\n        rVa.y=rVa.y*2.0-1.0;\n        vec2 dVa=texture2D(texture,down).xy;\n        dVa.y=dVa.y*2.0-1.0;\n        vec2 aa=(cVa+uVa+dVa+lVa+rVa)/5.0;\n        \n        //cVa.x+=cVa.y*mp;\n        //uVa.x+=uVa.y*mp;\n        //lVa.x+=lVa.y*mp;\n        //rVa.x+=rVa.y*mp;\n        //dVa.x+=dVa.y*mp;\n        vec3 normal=vec3(0.0);\n        vec3 mep=vec3(uv2,texture2D(texture,uv2).z/gnB);\n        float hb=0.0;\n        float tt=0.0;\n        for(int i=-1;i<=1;i++){\n          for(int j=-1;j<=1;j++){\n            if((i*i>0 || j*j>0 )){\n              \n            vec2 op=uv2+vec2(float(i),float(j))/resp.xy*qb;\n            vec2 op2=uv2+vec2(float(j),-float(i))/resp.xy*qb;\n            float pV=1.0/pow(length(op),2.0);\n            tt+=pV;\n            if(texture2D(texture,op).z>gn){// && texture2D(texture,uv2-op*2.0).z>gn){\n              hb+=pV;\n            }\n            \n            //hb=hb+texture2D(texture,op).z/gnB;\n              vec3 opp=vec3(op,texture2D(texture,op).z/gnB)-mep;\n              vec3 opp2=vec3(op2,texture2D(texture,op2).z/gnB)-mep;\n              normal+=normalize(cross(opp,opp2));\n            }\n          }\n        }\n        normal=normalize(normal);\n        //normalize(normAt(uv2)+normAt(up)+normAt(left)+normAt(down)+normAt(right));\n        float colA=atan(normal.y,normal.x)/atan(0.0,-1.0)/2.0;\n        if(cVa.y<0.0){\n          //colA+=0.5;\n          colA=mod(colA,1.0);\n        }\n        if(gnB*0.5<gn){\n          normal=-normal;\n        }\n       \n        gn=hb/tt*2.0-1.0;\n        vec3 col=hsl2rgb(vec3(mod(colA,1.0),1.0,min(max(gn,0.0),1.0)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));\n      gl_FragColor = vec4(vec3(dot(normal,normalize(vec3(-1.0,2.0,1.0)))*0.5)*col*0.0+col,1.0);\n      gl_FragColor=vec4(vec3(1.0-texture2D(texture,uv2).z/texture2D(texture,vec2(0.0)).z,1.0-texture2D(textureB,uv2).z/texture2D(textureB,vec2(0.0)).z,1.0-texture2D(textureC,uv2).z/texture2D(textureC,vec2(0.0)).z),1.0);\n      gl_FragColor=vec4(vec3(texture2D(texture,uv2).z,texture2D(textureB,uv2).z,texture2D(textureC,uv2).z),1.0);\n     \n      vec2 uvc=(uv2-vec2(0.5,0.5))*2.0;\n      if(max(abs(uvc.x),abs(uvc.y))>1.0){\n        gl_FragColor = vec4(vec3(0.0),1.0);\n      }\n    }",
     vert: "\n    precision mediump float;\n    attribute vec2 position;\n    varying vec2 uv;\n    void main () {\n      uv = position/2.0+vec2(0.5,0.5);\n      gl_Position = vec4(position, 0, 1);\n    }",
     attributes: {
       position: [-1, -1, 3, -1, -1, 3]
     },
     uniforms: {
       texture: fbo,
+      textureB: fboB,
+      textureC: fboC,
       mouse: function mouse(_a) {
         var pixelRatio = _a.pixelRatio,
             viewportHeight = _a.viewportHeight,
@@ -36084,15 +36262,33 @@ require('getusermedia')({
     //   //   stepsQ=0;
     //   // }
     //   if(stepsT*context.sampleRate<window.vol.length){
-    //   (flips++)%2===0?drawFeedback():drawFeedback2();
+    //   drawFeedbackB[flips % 2]();
+    //   drawFeedbackC[flips % 2]();
+    //   drawFeedback[(flips++) % 2]();
     //   stepsT+=1/simF(mpp);
     //   }
     //   if(new Date().getTime()-tm>1000/60){
     //     break;
     //   }
     // }
+    // drawNi();
+    // while(new Date().getTime()-tm<1000/60){
+    //   lastSTm+=1000/simF(mpp);
+    //   stepsQ+=1;
+    //   // if(tm-lastSTm>1000){
+    //   //  console.log("sps",stepsQ,"need",mc*gSize,context.sampleRate/(mc*gSize))
+    //   //   lastSTm=tm;
+    //   //   stepsQ=0;
+    //   // }
+    //   if(stepsT*context.sampleRate<window.vol.length){
+    //   drawFeedbackB[flips % 2]();
+    //   drawFeedbackC[flips % 2]();
+    //   drawFeedback[(flips++) % 2]();
+    //   stepsT+=1/simF(mpp);
+    //   }
+    // }
 
-    for (var i = 0; i < 1024; i++) {
+    for (var i = 0; i < 4096; i++) {
       stepsQ += 1;
 
       if (stepsT * context.sampleRate < window.vol.length) {
@@ -36102,7 +36298,9 @@ require('getusermedia')({
         //   lastSTm=tm;
         //   stepsQ=0;
         // }
-        flips++ % 2 === 0 ? drawFeedback() : drawFeedback2();
+        drawFeedbackB[flips % 2]();
+        drawFeedbackC[flips % 2]();
+        drawFeedback[flips++ % 2]();
         stepsT += 1 / simF(mpp);
       }
 
@@ -36113,6 +36311,7 @@ require('getusermedia')({
       }
     }
 
+    drawNi();
     var tm = new Date().getTime();
 
     if (tm - lastFm > 1000) {
@@ -36142,8 +36341,7 @@ require('getusermedia')({
     }
 
     window.mpp = mpp;
-    lastSTm = tm;
-    drawNi(); //   pixels({
+    lastSTm = tm; //   pixels({
     //     copy: true
     //   })
   });
@@ -36176,7 +36374,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "38537" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "41531" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};
@@ -36352,5 +36550,5 @@ function hmrAcceptRun(bundle, id) {
     return true;
   }
 }
-},{}]},{},["../node_modules/parcel/src/builtins/hmr-runtime.js","index.ts"], null)
-//# sourceMappingURL=/src.77de5100.js.map
+},{}]},{},["../node_modules/parcel/src/builtins/hmr-runtime.js","v2.ts"], null)
+//# sourceMappingURL=/v2.5d2767c1.js.map

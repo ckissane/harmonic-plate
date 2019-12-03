@@ -7,7 +7,7 @@ import reglCreate from 'regl';
 import GPU from 'gpu.js';
 // console.log(GPU);
 const gpu = new GPU();
-
+window.vScale=1.0;
 const regl = reglCreate({ extensions: ['webgl_draw_buffers', 'oes_texture_float', 'oes_texture_float_linear'] });
 // const regl = require('regl')({extensions:["OES_texture_float"]})
 const mouse = require('mouse-change')()
@@ -110,11 +110,12 @@ require('getusermedia')({ audio: true }, function (err, stream) {
   captureNode.onaudioprocess = function (e) {
     // console.log("HI")
     var vu = e.inputBuffer.getChannelData(0);
-    var ave = vu.reduce((a, b) => a + b, 0) / vu.length;
+    var ave = vu.map(Math.abs).reduce((a, b) => a + b, 0) / vu.length;
+    window.vScale=window.vScale*0.1+1/Math.max(ave,0.01)*0.9;
     var nv = [];
     for (var i = 0; i < vu.length; i++) {
 
-      nv[i] = true?vu[i]:Math.sin(Math.PI*2*samN/context.sampleRate*fund*window.mul)*0.5;//Math.abs(vu[i])<0.0?0:vu[i];
+      nv[i] = true?vu[i]*window.vScale:Math.sin(Math.PI*2*samN/context.sampleRate*fund*window.mul)*0.5;//Math.abs(vu[i])<0.0?0:vu[i];
       samN += 1;
     }
     if (stepsT * context.sampleRate < window.vol.length && window.fastMode) {
@@ -163,6 +164,26 @@ require('getusermedia')({ audio: true }, function (err, stream) {
     depthStencil: false
   })
   const fbo2 = regl.framebuffer({
+    color:
+      regl.texture({ type: 'float', width: gSize, height: gSize, mag: 'linear' }),
+    depthStencil: false
+  })
+  const fboB = regl.framebuffer({
+    color:
+      regl.texture({ type: 'float', width: gSize, height: gSize, mag: 'linear' }),
+    depthStencil: false
+  })
+  const fboB2 = regl.framebuffer({
+    color:
+      regl.texture({ type: 'float', width: gSize, height: gSize, mag: 'linear' }),
+    depthStencil: false
+  })
+  const fboC = regl.framebuffer({
+    color:
+      regl.texture({ type: 'float', width: gSize, height: gSize, mag: 'linear' }),
+    depthStencil: false
+  })
+  const fboC2 = regl.framebuffer({
     color:
       regl.texture({ type: 'float', width: gSize, height: gSize, mag: 'linear' }),
     depthStencil: false
@@ -250,7 +271,7 @@ void main () {
     float pos=cVa.x-0.5;
     
     float accel=(q/qC-cVa.x)*mp*mp;
-    float vel=(cVa.y+0.0);//+accel/2.0;
+    float vel=(cVa.y+0.0)+accel/2.0;
     cVa.y+=accel;
     
     //cVa.y+=accel/2.0;
@@ -264,10 +285,11 @@ void main () {
    
     if(t<20.0){
         cVa=vec2(0.5,0.0);
+        pos=0.0;
         //gn=0.0;
     }
     gnt=gn;//1.0;//abs(abs(rVa.x-0.5)+abs(lVa.x-0.5)+abs(uVa.x-0.5)+abs(dVa.x-0.5)-abs((rVa.x-0.5)+(lVa.x-0.5)+(uVa.x-0.5)+(dVa.x-0.5))*2.0)+abs(cVa.x-0.5);
-    float apRat=pow(abs(-accel/pos),0.5);
+    float apRat=pow(abs(-accel/mp/mp/pos),0.5);
     gnt=pow(pow(pos,2.0)+pow(vel/mp/mp,2.0)/abs(-accel/mp/mp/pos),0.5);
    
     
@@ -283,31 +305,41 @@ void main () {
     }
     
     if(t<20.0){
-      gn=0.5;
+      gn=abs(pos)*8.0;
     }
-    if(gnt<1.0){
-      float le=abs(pos-0.5)+0.00001;
+    if(gnt<1.0){//} && (abs(vel+pos)<=abs(pos) && abs(vel+pos-accel/2.0)>=abs(pos))){
+    
+      gnt=(abs(pos)*2.0+gnt)/2.0;//(abs(pos)+abs(uVa.x-0.5)+abs(lVa.x-0.5)+abs(dVa.x-0.5)+abs(rVa.x-0.5))/5.0;//gnt*8.0;//abs(pos);
+      float le=max(0.001,0.0);//max(min((1.0-pow(0.5,1.0*apRat/100.0)),0.01),0.00001);//min(abs(vel*2.0+pos-0.5)/abs(pos-0.5)*0.001+0.00001,1.0);
+      gnt=gnt;
       gn=abs(gnt*le+gn*(1.0-le));
     }
-    
+    if(length(floor(abs(uv-vec2(0.0,0.0))*res.xy))<1.0){
+      //gn=0.05;
+    }
     
     if(t<20.0){
-      gn=0.5;
+      gn=0.0;
     }
+    if(pos*vel>0.0){
     cVa=(vec2(0.5,0.0)*0.001+cVa*0.999);
+    }
   gl_FragColor = vec4(vec3(cVa.x,cVa.y*0.5+0.5,gn),1.0);
 }`;
-  const drawFeedback = regl({
-    frag: fr,
+var vr=`
 
-    vert: `
   precision mediump float;
   attribute vec2 position;
   varying vec2 uv;
   void main () {
     uv = position/2.0+vec2(0.5,0.5);
     gl_Position = vec4(position, 0, 1);
-  }`,
+  }
+  `;
+  const drawFeedback = [regl({
+    frag: fr,
+
+    vert: vr,
 
     attributes: {
       position: [
@@ -341,19 +373,10 @@ void main () {
     },
 
     count: 3
-  })
-
-  const drawFeedback2 = regl({
+  }),regl({
     frag: fr,
 
-    vert: `
-    precision mediump float;
-    attribute vec2 position;
-    varying vec2 uv;
-    void main () {
-      uv = position/2.0+vec2(0.5,0.5);
-      gl_Position = vec4(position, 0, 1);
-    }`,
+    vert: vr,
 
     attributes: {
       position: [
@@ -385,12 +408,161 @@ void main () {
     },
 
     count: 3
-  })
+  })];
+  const drawFeedbackB = [regl({
+    frag: fr,
 
+    vert: vr,
+
+    attributes: {
+      position: [
+
+        -1, -1,
+        3, -1,
+        -1, 3,
+
+
+
+      ]
+    },
+    framebuffer: fboB,
+    uniforms: {
+      texture: fboB2,
+      mouse: ({ pixelRatio, viewportHeight, viewportWidth }) => [
+        mouse.x * pixelRatio,
+        viewportHeight - mouse.y * pixelRatio
+      ],
+      res: ({ viewportHeight, viewportWidth }) => [
+        gSize, gSize
+        // viewportWidth,
+        // viewportHeight
+      ],
+      t: ({ tick }) => tick,
+      vol: () => {
+        return getVolS();
+
+      },
+      mp: () => mpp/2
+    },
+
+    count: 3
+  }),regl({
+    frag: fr,
+
+    vert: vr,
+
+    attributes: {
+      position: [
+
+        -1, -1,
+        3, -1,
+        -1, 3,
+
+
+
+      ]
+    },
+    framebuffer: fboB2,
+    uniforms: {
+      texture: fboB,
+      mouse: ({ pixelRatio, viewportHeight, viewportWidth }) => [
+        mouse.x * pixelRatio,
+        viewportHeight - mouse.y * pixelRatio
+      ],
+      res: ({ viewportHeight, viewportWidth }) => [
+        gSize, gSize
+        // viewportWidth,
+        // viewportHeight
+      ],
+      t: ({ tick }) => tick,
+      vol: () => {
+        return getVolS();
+      }, mp: () => mpp/2
+    },
+
+    count: 3
+  })];
+
+
+  const drawFeedbackC = [regl({
+    frag: fr,
+
+    vert: vr,
+
+    attributes: {
+      position: [
+
+        -1, -1,
+        3, -1,
+        -1, 3,
+
+
+
+      ]
+    },
+    framebuffer: fboC,
+    uniforms: {
+      texture: fboC2,
+      mouse: ({ pixelRatio, viewportHeight, viewportWidth }) => [
+        mouse.x * pixelRatio,
+        viewportHeight - mouse.y * pixelRatio
+      ],
+      res: ({ viewportHeight, viewportWidth }) => [
+        gSize, gSize
+        // viewportWidth,
+        // viewportHeight
+      ],
+      t: ({ tick }) => tick,
+      vol: () => {
+        return getVolS();
+
+      },
+      mp: () => mpp/4
+    },
+
+    count: 3
+  }),regl({
+    frag: fr,
+
+    vert: vr,
+
+    attributes: {
+      position: [
+
+        -1, -1,
+        3, -1,
+        -1, 3,
+
+
+
+      ]
+    },
+    framebuffer: fboC2,
+    uniforms: {
+      texture: fboC,
+      mouse: ({ pixelRatio, viewportHeight, viewportWidth }) => [
+        mouse.x * pixelRatio,
+        viewportHeight - mouse.y * pixelRatio
+      ],
+      res: ({ viewportHeight, viewportWidth }) => [
+        gSize, gSize
+        // viewportWidth,
+        // viewportHeight
+      ],
+      t: ({ tick }) => tick,
+      vol: () => {
+        return getVolS();
+      }, mp: () => mpp/4
+    },
+
+    count: 3
+  })];
   const drawNi = regl({
     frag: `
     precision mediump float;
     uniform sampler2D texture;
+    uniform sampler2D textureB;
+    uniform sampler2D textureC;
     uniform vec2 mouse;
     uniform vec2 res;
     uniform vec2 resp;
@@ -542,6 +714,9 @@ void main () {
         gn=hb/tt*2.0-1.0;
         vec3 col=hsl2rgb(vec3(mod(colA,1.0),1.0,min(max(gn,0.0),1.0)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
       gl_FragColor = vec4(vec3(dot(normal,normalize(vec3(-1.0,2.0,1.0)))*0.5)*col*0.0+col,1.0);
+      gl_FragColor=vec4(vec3(1.0-texture2D(texture,uv2).z/texture2D(texture,vec2(0.0)).z,1.0-texture2D(textureB,uv2).z/texture2D(textureB,vec2(0.0)).z,1.0-texture2D(textureC,uv2).z/texture2D(textureC,vec2(0.0)).z),1.0);
+      gl_FragColor=vec4(vec3(texture2D(texture,uv2).z,texture2D(textureB,uv2).z,texture2D(textureC,uv2).z),1.0);
+     
       vec2 uvc=(uv2-vec2(0.5,0.5))*2.0;
       if(max(abs(uvc.x),abs(uvc.y))>1.0){
         gl_FragColor = vec4(vec3(0.0),1.0);
@@ -570,6 +745,8 @@ void main () {
     },
     uniforms: {
       texture: fbo,
+      textureB: fboB,
+      textureC: fboC,
       mouse: ({ pixelRatio, viewportHeight, viewportWidth }) => [
         mouse.x * pixelRatio,
         viewportHeight - mouse.y * pixelRatio
@@ -603,15 +780,35 @@ void main () {
     //   //   stepsQ=0;
     //   // }
     //   if(stepsT*context.sampleRate<window.vol.length){
-    //   (flips++)%2===0?drawFeedback():drawFeedback2();
+    //   drawFeedbackB[flips % 2]();
+    //   drawFeedbackC[flips % 2]();
+    //   drawFeedback[(flips++) % 2]();
     //   stepsT+=1/simF(mpp);
     //   }
     //   if(new Date().getTime()-tm>1000/60){
     //     break;
     //   }
     // }
+    // drawNi();
+    // while(new Date().getTime()-tm<1000/60){
+    //   lastSTm+=1000/simF(mpp);
 
-    for (var i = 0; i < 1024; i++) {
+    //   stepsQ+=1;
+    //   // if(tm-lastSTm>1000){
+    //   //  console.log("sps",stepsQ,"need",mc*gSize,context.sampleRate/(mc*gSize))
+    //   //   lastSTm=tm;
+    //   //   stepsQ=0;
+    //   // }
+    //   if(stepsT*context.sampleRate<window.vol.length){
+    //   drawFeedbackB[flips % 2]();
+    //   drawFeedbackC[flips % 2]();
+    //   drawFeedback[(flips++) % 2]();
+    //   stepsT+=1/simF(mpp);
+    //   }
+      
+    // }
+
+    for (var i = 0; i < 4096; i++) {
       stepsQ += 1;
       if (stepsT * context.sampleRate < window.vol.length) {
 
@@ -621,7 +818,11 @@ void main () {
         //   lastSTm=tm;
         //   stepsQ=0;
         // }
-        (flips++) % 2 === 0 ? drawFeedback() : drawFeedback2();
+        
+        drawFeedbackB[flips % 2]();
+        drawFeedbackC[flips % 2]();
+        drawFeedback[(flips++) % 2]();
+        
         stepsT += 1 / simF(mpp);
       }
       window.gd = [stepsT * context.sampleRate, window.vol.length]
@@ -629,6 +830,7 @@ void main () {
         break;
       }
     }
+    drawNi();
     var tm = new Date().getTime();
     if (tm - lastFm > 1000) {
       console.log("sps", stepsQ, "need", mc * gSize, context.sampleRate / (mc * gSize))
@@ -653,7 +855,7 @@ void main () {
     window.mpp = mpp;
     lastSTm = tm;
 
-    drawNi();
+    
     //   pixels({
     //     copy: true
     //   })

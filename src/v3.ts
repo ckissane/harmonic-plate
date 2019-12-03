@@ -6,17 +6,19 @@
 import reglCreate from 'regl';
 import GPU from 'gpu.js';
 // console.log(GPU);
-const gpu = new GPU();
+// const gpu = new GPU();
 window.vScale=1.0;
+window.gen=true;
 const regl = reglCreate({ extensions: ['webgl_draw_buffers', 'oes_texture_float', 'oes_texture_float_linear'] });
 // const regl = require('regl')({extensions:["OES_texture_float"]})
 const mouse = require('mouse-change')()
 var subsamp = 4096 * 2;
 var fund = 261.625565;
-var mc = fund*2.0;
-window.mul=1.0;
-const gSize = 128;//128*4 ;
+var mc = fund;
+window.mul=2.0;
+const gSize = 270;//1024;//128*4 ;
 var mpp = 1.0;//0.5;
+var lastVolSample=0.0;
 function simF(mp) {
   return mc * gSize / mp;
 }
@@ -34,35 +36,35 @@ for (var i = 0; i < gSize; i++) {
     vuu[i][j] = [0.0, 0.0];
   }
 }
-const kernel = gpu.createKernel(function (array) {
-  const [first, second] = array;
-  return first + second;
-}, {
-    output: [2],
-    argumentTypes: { array: 'Array(2)' }
-  });
-console.log("K", kernel([1, 2]));
-const iterateBounce = gpu.createKernel(function (a, v: number) {
-  let sum: number = 0.5;
-  let sumv: number = 0.5 + v;
-  let me: number = a[this.thread.x][this.thread.y][0] + a[this.thread.x][this.thread.y][0];
-  sum += me;
+// const kernel = gpu.createKernel(function (array) {
+//   const [first, second] = array;
+//   return first + second;
+// }, {
+//     output: [2],
+//     argumentTypes: { array: 'Array(2)' }
+//   });
+// console.log("K", kernel([1, 2]));
+// const iterateBounce = gpu.createKernel(function (a, v: number) {
+//   let sum: number = 0.5;
+//   let sumv: number = 0.5 + v;
+//   let me: number = a[this.thread.x][this.thread.y][0] + a[this.thread.x][this.thread.y][0];
+//   sum += me;
 
-  if (this.thread.x < 64.5) {
+//   if (this.thread.x < 64.5) {
 
-    if (this.thread.x > 62.5) {
-      if (this.thread.y < 64.5) {
+//     if (this.thread.x > 62.5) {
+//       if (this.thread.y < 64.5) {
 
-        if (this.thread.y > 62.5) {
-          sum = sumv;
-        }
-      }
-    }
-  }
-  return [sum - 0.5, a[this.thread.x][this.thread.y][1]];
-}, {
-    argumentTypes: { a: 'Array3D(2)', v: 'Float' }
-  }).setOutput([2, gSize, gSize]);
+//         if (this.thread.y > 62.5) {
+//           sum = sumv;
+//         }
+//       }
+//     }
+//   }
+//   return [sum - 0.5, a[this.thread.x][this.thread.y][1]];
+// }, {
+//     argumentTypes: { a: 'Array3D(2)', v: 'Float' }
+//   }).setOutput([2, gSize, gSize]);
 
 // const iteratePull = gpu.createKernel(function(a: number[][][]) {
 //   let sum:number = 0.5;
@@ -78,7 +80,7 @@ const iterateBounce = gpu.createKernel(function (a, v: number) {
 //   }
 //   return sum-0.5;
 // }).setOutput([2,gSize,gSize]).setOutputToTexture(true);
-window.iterateBounce = iterateBounce;
+// window.iterateBounce = iterateBounce;
 // window.iteratePull=iteratePull;
 require('getusermedia')({ audio: true }, function (err, stream) {
   window.vol = [0.0];
@@ -115,7 +117,7 @@ require('getusermedia')({ audio: true }, function (err, stream) {
     var nv = [];
     for (var i = 0; i < vu.length; i++) {
 
-      nv[i] = true?vu[i]*window.vScale:Math.sin(Math.PI*2*samN/context.sampleRate*fund*window.mul)*0.5;//Math.abs(vu[i])<0.0?0:vu[i];
+      nv[i] = window.gen?vu[i]*window.vScale:Math.sin(Math.PI*2*samN/context.sampleRate*fund*window.mul)*0.5;//Math.abs(vu[i])<0.0?0:vu[i];
       samN += 1;
     }
     if (stepsT * context.sampleRate < window.vol.length && window.fastMode) {
@@ -141,6 +143,7 @@ require('getusermedia')({ audio: true }, function (err, stream) {
 
   }
   function getVolS() {
+    //var ln=lastVolSample* context.sampleRate;
     var rn = stepsT * context.sampleRate;
     var ler = rn % 1;
     return (window.vol[Math.floor(rn % subsamp)] || 0) * (1 - ler) + (window.vol[Math.floor((rn + 1) % subsamp)] || 0) * ler;
@@ -234,7 +237,7 @@ uniform float vol;
 varying vec2 uv;
 uniform float mp;
 void main () {
-    //float mp=0.5;///2.0;
+    float mpt=mp;///2.0;
     
     vec2 cVa=texture2D(texture,uv).xy;
     vec2 cVa0=texture2D(texture,uv).xy;
@@ -245,9 +248,13 @@ void main () {
     
     float q=0.0;
     float qC=0.0;
-    int i=1;
+    //int i=1;
    // for(int i=1;i<2;i++){
-      float s=float(i);
+      float s=1.0;
+      if(mpt>1.0){
+        s=mpt+0.0;
+        mpt=1.0;
+      }
       float c=1.0/(s);
     vec2 up=uv+vec2(0.0,-1.0)/res.xy*s;
     vec2 left=uv+vec2(-1.0,0.0)/res.xy*s;
@@ -270,16 +277,11 @@ void main () {
     //}
     float pos=cVa.x-0.5;
     
-    float accel=(q/qC-cVa.x)*mp*mp;
+    float accel=(q/qC-cVa.x)*mpt;
     float vel=(cVa.y+0.0)+accel/2.0;
     cVa.y+=accel;
     
-    //cVa.y+=accel/2.0;
-    //cVa.x+=cVa.y*mp;
-    //uVa.x+=uVa.y*mp;
-    //lVa.x+=lVa.y*mp;
-    //rVa.x+=rVa.y*mp;
-    //dVa.x+=dVa.y*mp;
+    
     
     float gnt=0.0;
    
@@ -289,18 +291,21 @@ void main () {
         //gn=0.0;
     }
     gnt=gn;//1.0;//abs(abs(rVa.x-0.5)+abs(lVa.x-0.5)+abs(uVa.x-0.5)+abs(dVa.x-0.5)-abs((rVa.x-0.5)+(lVa.x-0.5)+(uVa.x-0.5)+(dVa.x-0.5))*2.0)+abs(cVa.x-0.5);
-    float apRat=pow(abs(-accel/mp/mp/pos),0.5);
-    gnt=pow(pow(pos,2.0)+pow(vel/mp/mp,2.0)/abs(-accel/mp/mp/pos),0.5);
+    float apRat=pow(abs(-accel/mpt/mpt/pos),0.5);
+    gnt=pow(pow(pos,2.0)+pow(vel/mpt/mpt,2.0)/abs(-accel/mpt/mpt/pos),0.5);
    
     
     //cVa.y=(vec2(0.5,0.0)*0.001+cVa*0.999).y;
-    float j=1.0-length(floor(abs(uv-vec2(0.5))*res.xy))*100.0;//pow(2.0,-pow(length(abs(uv-vec2(0.5))*res.xy)/10.0,2.0));
+    float j=1.0-length(abs(((uv-vec2(0.5))*res.xy)));//pow(2.0,-pow(length(abs(uv-vec2(0.5))*res.xy)/10.0,2.0));
     //j=1.0-length(floor(abs(uv-vec2(0.0,1.0))*res.xy));//pow(2.0,-pow(length(abs(uv-vec2(0.5))*res.xy)/10.0,2.0));
-    cVa.x+=cVa.y;
+    cVa.x+=cVa.y*mpt;
+    
     if( j>0.0 ){
-    j=1.0;
+    j=j*0.5;
+    float dp=vol/2.0+0.5;
+    // cVa.y+=(dp-cVa.x)*j;
     // cVa.y+=vol/2.0+0.5-cVa.x;
-      cVa.x=cVa.x*(1.0-j)+vec2(vol/2.0+0.5,0.0).x*j;//cos(t*0.1*2.0*atan(0.0,-1.0))/4.0+0.5;
+      cVa=cVa*(1.0-j)+vec2(vol/2.0+0.5,0.0)*j;//cos(t*0.1*2.0*atan(0.0,-1.0))/4.0+0.5;
       //cVa.y=0.0;//-2.0*atan(0.0,-1.0)*0.01*sin(t*0.01*2.0*atan(0.0,-1.0))/2.0+0.5;
     }
     
@@ -321,8 +326,13 @@ void main () {
     if(t<20.0){
       gn=0.0;
     }
-    if(pos*vel>0.0){
-    cVa=(vec2(0.5,0.0)*0.001+cVa*0.999);
+    float qq=texture2D(texture,vec2(0.0)).z;
+    if(!(qq>0.01)){
+qq=1.0;
+    }
+    if(true){//abs(vel)>abs(pos+vel)||abs(pos)<abs(pos+vel)){
+      float d=0.001;//1.0-1.0/max(qq,0.1);
+    cVa=(vec2(0.5,0.0)*d+cVa*(1.0-d));
     }
   gl_FragColor = vec4(vec3(cVa.x,cVa.y*0.5+0.5,gn),1.0);
 }`;
@@ -650,16 +660,18 @@ var vr=`
         return normal;
   }
     void main () {
+      vec2 rc=vec2(min(res.x,res.y));
+        vec2 uv2=(uv-vec2(0.5,0.5)-vec2(0.5,0.5)/res.xy*0.0)*res.xy/rc.xy+vec2(0.5,0.5);
+      float gn=texture2D(texture,uv2).z;
+     
+      gl_FragColor = vec4(vec3( min(max(1.0-gn/texture2D(texture,vec2(0.0)).z,0.0),1.0)),1.0);
         float mp=1.0;
         float qb=0.5;
-        vec2 rc=vec2(min(res.x,res.y));
-        vec2 uv2=(uv-vec2(0.5,0.5)-vec2(0.5,0.5)/res.xy*0.0)*res.xy/rc.xy+vec2(0.5,0.5);
         vec2 up=uv2+vec2(0.0,-1.0)/resp.xy*qb;
         vec2 left=uv2+vec2(-1.0,0.0)/resp.xy*qb;
         vec2 right=uv2+vec2(1.0,0.0)/resp.xy*qb;
         vec2 down=uv2+vec2(0.0,1.0)/resp.xy*qb;
         vec2 cVa=texture2D(texture,uv2).xy;
-        float gn=texture2D(texture,uv2).z;
         float gnB=texture2D(texture,vec2(0.0,0.0)).z;
         cVa.y=cVa.y*2.0-1.0;
         vec2 uVa=texture2D(texture,up).xy;
@@ -681,13 +693,13 @@ var vr=`
         vec3 mep=vec3(uv2,texture2D(texture,uv2).z/gnB);
         float hb=0.0;
         float tt=0.0;
-        for(int i=-2;i<=2;i++){
-          for(int j=-2;j<=2;j++){
-            if((i*i>0 || j*j>0 )){
+        for(int i=-8;i<=8;i++){
+          for(int j=-8;j<=8;j++){
+            if((i*i>0 || j*j>0 ) && length(vec2(i,j))<=8.0){
               
             vec2 op=uv2+vec2(float(i),float(j))/resp.xy*qb;
             vec2 op2=uv2+vec2(float(j),-float(i))/resp.xy*qb;
-            float pV=1.0/pow(length(op),2.0);
+            float pV=pow(length(vec2(i,j)),-1.0);
             tt+=pV;
             if(texture2D(texture,op).z>gn){// && texture2D(texture,uv2-op*2.0).z>gn){
               hb+=pV;
@@ -711,7 +723,11 @@ var vr=`
           normal=-normal;
         }
        
-        gn=floor((hb/tt*2.0-1.0)*2.0)/2.0;
+        gn=((hb/tt*2.0-1.0)*2.0)/2.0;
+        //gn=gn*gn;
+        // if(gn<0.5){
+        //   gn=0.0;
+        // }
         vec3 col=hsl2rgb(vec3(mod(colA,1.0),1.0,min(max(gn,0.0),1.0)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
       gl_FragColor = vec4(col,1.0);
       //gl_FragColor=vec4(vec3(1.0-texture2D(texture,uv2).z/texture2D(texture,vec2(0.0)).z,1.0-texture2D(textureB,uv2).z/texture2D(textureB,vec2(0.0)).z,1.0-texture2D(textureC,uv2).z/texture2D(textureC,vec2(0.0)).z),1.0);
@@ -745,8 +761,8 @@ var vr=`
     },
     uniforms: {
       texture: fbo,
-      textureB: fboB,
-      textureC: fboC,
+      // textureB: fboB,
+      // textureC: fboC,
       mouse: ({ pixelRatio, viewportHeight, viewportWidth }) => [
         mouse.x * pixelRatio,
         viewportHeight - mouse.y * pixelRatio
@@ -819,8 +835,8 @@ var vr=`
         //   stepsQ=0;
         // }
         
-        drawFeedbackB[flips % 2]();
-        drawFeedbackC[flips % 2]();
+        // drawFeedbackB[flips % 2]();
+        // drawFeedbackC[flips % 2]();
         drawFeedback[(flips++) % 2]();
         
         stepsT += 1 / simF(mpp);
@@ -833,22 +849,23 @@ var vr=`
     drawNi();
 
     var tm = new Date().getTime();
+    var mkMN=1;//5.9;
     if (tm - lastFm > 1000) {
       console.log("sps", stepsQ, "need", mc * gSize, context.sampleRate / (mc * gSize))
       lastFm = tm;
       var sr = 0;//Math.log(stepsQ/context.sampleRate)/Math.log(2);
       sr = Math.min(Math.floor(sr), 0);
       var subSuper = Math.floor(context.sampleRate);
-      if (stepsQ >= subSuper) {
-        mpp = Math.max(mc * gSize / subSuper, 1);//0.125);
+      if (stepsQ >= subSuper/mkMN) {
+        mpp = 1;//Math.max(  subSuper/stepsQ, 0.125);
         console.log("subSuper", subSuper, "stepsQ", stepsQ)
         window.fastMode = true;
-        if (mpp > 1) {
-          mpp = 1;
+        if (mpp > mkMN) {
+          mpp = mkMN;
           window.fastMode = false;
         }
       } else {
-        mpp = 1;
+        mpp = mkMN;
         window.fastMode = false;
       }
       stepsQ = 0;

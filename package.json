@@ -22,7 +22,9 @@
     "parcel": "^1.12.4"
   },
   "dependencies": {
+    "@types/dat.gui": "^0.7.5",
     "@types/node": "^12.12.14",
+    "dat.gui": "^0.7.6",
     "getusermedia": "^2.0.1",
     "gpu.js": "^2.3.0",
     "mouse-change": "^1.4.0",

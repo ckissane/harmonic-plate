@@ -16,7 +16,7 @@ var subsamp = 4096 * 2;
 var fund = 261.625565;
 var mc = fund;
 window.mul=2.0;
-const gSize = 270;//1024;//128*4 ;
+const gSize =1080/4;// 270;//1024;//128*4 ;
 var mpp = 1.0;//0.5;
 var lastVolSample=0.0;
 function simF(mp) {
@@ -334,7 +334,13 @@ qq=1.0;
       float d=0.001;//1.0-1.0/max(qq,0.1);
     cVa=(vec2(0.5,0.0)*d+cVa*(1.0-d));
     }
-  gl_FragColor = vec4(vec3(cVa.x,cVa.y*0.5+0.5,gn),1.0);
+    float crazy=1.0-texture2D(texture,uv).z/texture2D(texture,vec2(0.0)).z;
+    crazy=crazy*0.1+0.9*texture2D(texture,uv).w;
+    if(t<20.0){
+      crazy=0.0;
+    }
+    
+    gl_FragColor = vec4(vec3(cVa.x,cVa.y*0.5+0.5,gn),crazy);
 }`;
 var vr=`
 
@@ -381,6 +387,20 @@ var vr=`
       },
       mp: () => mpp
     },
+    blend: {
+      enable: false,
+      func: {
+        srcRGB: 'src color',
+        srcAlpha: 1,
+        dstRGB: 'src color',
+        dstAlpha: 1
+      },
+      equation: {
+        rgb: 'add',
+        alpha: 'add'
+      },
+      color: [0, 0, 0, 0]
+    },
 
     count: 3
   }),regl({
@@ -416,7 +436,20 @@ var vr=`
         return getVolS();
       }, mp: () => mpp
     },
-
+    blend: {
+      enable: false,
+      func: {
+        srcRGB: 'src color',
+        srcAlpha: 1,
+        dstRGB: 'src color',
+        dstAlpha: 1
+      },
+      equation: {
+        rgb: 'add',
+        alpha: 'add'
+      },
+      color: [0, 0, 0, 0]
+    },
     count: 3
   })];
   const drawFeedbackB = [regl({
@@ -571,6 +604,7 @@ var vr=`
     frag: `
     precision mediump float;
     uniform sampler2D texture;
+    uniform sampler2D p;
     uniform sampler2D textureB;
     uniform sampler2D textureC;
     uniform vec2 mouse;
@@ -701,7 +735,7 @@ var vr=`
             vec2 op2=uv2+vec2(float(j),-float(i))/resp.xy*qb;
             float pV=pow(length(vec2(i,j)),-1.0);
             tt+=pV;
-            if(texture2D(texture,op).z>gn){// && texture2D(texture,uv2-op*2.0).z>gn){
+            if(texture2D(texture,op).z>texture2D(texture,uv2).z){// && texture2D(texture,uv2-op*2.0).z>gn){
               hb+=pV;
             }
             
@@ -728,15 +762,16 @@ var vr=`
         // if(gn<0.5){
         //   gn=0.0;
         // }
-        vec3 col=hsl2rgb(vec3(mod(colA,1.0),1.0,min(max(gn,0.0),1.0)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
-      gl_FragColor = vec4(col,1.0);
+        vec3 col=hsl2rgb(vec3(mod(colA,1.0),1.0,min(max(gn*100.0,0.0),0.5)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
+      vec4 cooo = vec4(col,1.0);
       //gl_FragColor=vec4(vec3(1.0-texture2D(texture,uv2).z/texture2D(texture,vec2(0.0)).z,1.0-texture2D(textureB,uv2).z/texture2D(textureB,vec2(0.0)).z,1.0-texture2D(textureC,uv2).z/texture2D(textureC,vec2(0.0)).z),1.0);
     //gl_FragColor=vec4(vec3(texture2D(texture,uv2).z,texture2D(textureB,uv2).z,texture2D(textureC,uv2).z),1.0);
      
       vec2 uvc=(uv2-vec2(0.5,0.5))*2.0;
       if(max(abs(uvc.x),abs(uvc.y))>1.0){
-        gl_FragColor = vec4(vec3(0.0),1.0);
+        cooo = vec4(vec3(0.0),1.0);
       }
+      gl_FragColor=cooo+texture2D(p,uv)*0.0;
     }`,
 
     vert: `
@@ -761,6 +796,7 @@ var vr=`
     },
     uniforms: {
       texture: fbo,
+      p:pixels,
       // textureB: fboB,
       // textureC: fboC,
       mouse: ({ pixelRatio, viewportHeight, viewportWidth }) => [
@@ -842,12 +878,12 @@ var vr=`
         stepsT += 1 / simF(mpp);
       }
       window.gd = [stepsT * context.sampleRate, window.vol.length]
-      if (new Date().getTime() - tm > 1000 / 60) {
+      if (new Date().getTime() - tm > 1000 / 600) {
         break;
       }
     }
     drawNi();
-
+//pixels({copy:true})
     var tm = new Date().getTime();
     var mkMN=1;//5.9;
     if (tm - lastFm > 1000) {

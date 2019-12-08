@@ -24,6 +24,7 @@
   "dependencies": {
     "@types/dat.gui": "^0.7.5",
     "@types/node": "^12.12.14",
+    "autocorrelation": "0.0.5",
     "dat.gui": "^0.7.6",
     "getusermedia": "^2.0.1",
     "gpu.js": "^2.3.0",

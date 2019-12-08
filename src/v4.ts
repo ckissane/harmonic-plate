@@ -6,6 +6,7 @@
 import reglCreate from 'regl';
 import GPU from 'gpu.js';
 import * as dat from 'dat.gui';
+var autocorrelation = require('autocorrelation').autocorrelation;
 var HarmonicPlate = function() {
   this.message = 'dat.gui';
   this.detail=125;
@@ -14,10 +15,11 @@ var HarmonicPlate = function() {
 var harmonicPlate = new HarmonicPlate();
 
 // console.log(GPU);
-// const gpu = new GPU();
 window.vScale=1.0;
-window.gen=true;
+window.gen=false;
+window.vol=[];
 const regl = reglCreate({ extensions: ['webgl_draw_buffers', 'oes_texture_float', 'oes_texture_float_linear'] });
+const gpu = new GPU();
 const gui = new dat.GUI();
 var detailController=gui.add(harmonicPlate, 'detail', 10, 1080,5);
 detailController.onFinishChange(function(value) {
@@ -25,7 +27,7 @@ detailController.onFinishChange(function(value) {
 });
 // const regl = require('regl')({extensions:["OES_texture_float"]})
 const mouse = require('mouse-change')()
-var subsamp = 4096 * 2;
+var subsamp = 2048*4;
 var fund =261.625565;
 var mc = fund;
 window.mul=17**0.5;
@@ -41,63 +43,250 @@ var stepsT = 0;
 var stepsQ = 0;
 var lastSTm = new Date().getTime();
 var lastFm = new Date().getTime();
+const BUFFER_SIZE = 1024;//subsamp;
+
+var PitchAnalyser = function (context,source) {
+    this.isReady = false;
+    this.frequency=1;
+    this.context  = context;
+    this.ac=gpu.createKernel(
+      function(input:number[]) {
+        let sum = 0;
+        for (let j = 0; j < this.constants.n; j++) {
+          if(j+this.thread.x<this.constants.n){
+            sum += input[j] * input[j+this.thread.x]; // Pad input with zeroes
+        
+          }else{
+            break;
+          }
+        }
+        
+        return sum ;
+       
+      },
+      {
+        output: [BUFFER_SIZE*8],
+        constants:{n:BUFFER_SIZE*8}
+      }
+    )
+    // Prevent ScriptProcessorNode from being collected by GC
+    window._processor = this.processor = this.context.createScriptProcessor(BUFFER_SIZE+0,1,1);
+    this.processor.onaudioprocess = function (e) {
+      var q=e.inputBuffer.getChannelData(0);
+      var q2=[];
+      for (var sample = 0; sample < q.length; sample++) {
+        q2[sample]=q[sample];
+      }
+    
+      var nnv=window.vol.concat(q2);
+      var pl=nnv.length;
+     
+      nnv=nnv.slice(Math.max(0,nnv.length-BUFFER_SIZE*8),Math.min(Math.max(0,nnv.length-BUFFER_SIZE*8)+BUFFER_SIZE*8,nnv.length));
+      //console.log(pl,nnv.length);
+      window.vol=nnv;
+    //   if (stepsT * context.sampleRate < window.vol.length && window.fastMode) {
+    //   window.vol = window.vol.concat(nv);//vol.concat(vu);
+    // } else {
+    //   if (window.fastMode) {
+    //     stepsT = stepsT - window.vol.length / context.sampleRate;
+    //     window.vol = nv;
+    //   } else {
+        stepsT = (((stepsT - BUFFER_SIZE / context.sampleRate) % (1 / mc) + (1 / mc)) % (1 / mc));
+        // window.vol = nv;//vol.concat(vu);//ave*1024;//(ave>0?vu.reduce((a,b)=>Math.max(a,b),0):vu.reduce((a,b)=>Math.min(a,b),0))/2+ave/2;///vu.length*128.0;
+    //   }
+    // }
+      var outputBuffer = e.outputBuffer;
+
+  // Loop through the output channels (in this case there is only one)
+  for (var channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
+    
+    var outputData = outputBuffer.getChannelData(channel);
+
+    // Loop through the 4096 samples
+    for (var sample = 0; sample < outputBuffer.length; sample++) {
+      // make output equal to the same as the input
+      outputData[sample] = 0;
+
+      // add noise to each output sample
+     // outputData[sample] += ((Math.random() * 2) - 1) * 0.2;         
+    }
+  }
+        if (this.isReady) {
+          
+          
+          
+            this._process(window.vol);
+            window.mul=getAvePitch()/fund;
+    // console.log("HI")
+    var vu = q;
+    //window.vol=vu;
+    //var ave = vu.map(Math.abs).reduce((a, b) => a + b, 0) / vu.length;
+    window.vScale=1.0;//window.vScale*0.1+1/Math.max(ave,0.01)*0.9;
+    
+    // if (stepsT * context.sampleRate < window.vol.length && window.fastMode) {
+    //   window.vol = window.vol.concat(nv);//vol.concat(vu);
+    // } else {
+    //   if (window.fastMode) {
+    //     stepsT = stepsT - window.vol.length / context.sampleRate;
+    //     window.vol = nv;
+    //   } else {
+    //     stepsT = (((stepsT - vu.length / context.sampleRate) % (1 / mc) + (1 / mc)) % (1 / mc));
+    //     window.vol = nv;//vol.concat(vu);//ave*1024;//(ave>0?vu.reduce((a,b)=>Math.max(a,b),0):vu.reduce((a,b)=>Math.min(a,b),0))/2+ave/2;///vu.length*128.0;
+    //   }
+    // }
+        }
+    }.bind(this);
+    
+    // Generate sine wave with custom frequency
+    this.source = source;
+    //this.source.start(0)
+
+    this.source.connect(this.processor).connect(this.context.destination);
+    this.isReady = true;
+    //this.source.start(0);
+};
+
+PitchAnalyser.prototype._process = function (input) {
+    this.isReady = false;
+
+    var 
+        locations, diffs;
+
+    // Perform autocorrelation on input signal
+if(window.vol.length>=BUFFER_SIZE*8 ){
+    var buffer=this.ac(window.vol);//.slice(0,BUFFER_SIZE);
+    
+    // Find peaks
+    locations = findpeaks(buffer);
+    
+    // Calculate frequency from median value of distances between peaks
+    diffs = diff(locations);
+    var freq = this.context.sampleRate / median(diffs);
+    this.frequency=freq;//*0.1+this.frequency*0.9;
+}
+    this.isReady = true;
+};
+
+/// Lame MATLAB/Octave-like functions
+function xcorr(input, output) {
+    var n = input.length,
+        norm, sum,  i, j;
+    
+    for (i = 0; i < n; i++) {
+        sum = 0;
+        for (j = 0; j < n; j++) {
+            sum += (input[j] * (input[j+i] || 0)); // Pad input with zeroes
+        }
+        if (i === 0) norm = sum;
+        output[i] = sum / norm;
+    }
+}
+
+function findpeaks(data) {
+    var locations = [0];
+
+    for (var i = 1; i < data.length - 1; i+=1) {
+        if (data[i] > 0 && data[i-1] < data[i] && data[i] > data[i+1]) {
+            locations.push(i);
+        }
+    }
+
+    return locations;
+}
+
+function diff(data) {
+    return data.reduce(function (acc, value, i) {
+        acc[i] = data[i] - data[i-1]; return acc;
+    }, []).slice(1);
+}
+
+function mean(data) {
+    return data.reduce(function (acc, value) {
+        return acc + value;
+    }, 0) / data.length;
+}
+
+function median(data) {
+    var half;
+    
+    data.sort( function(a, b) {return a - b;} );
+    half = Math.floor(data.length/2);
+ 
+    if (data.length % 2)
+        return data[half];
+    else
+        return (data[half-1] + data[half]) / 2.0;
+}
 require('getusermedia')({ audio: true }, function (err, stream) {
   // var stream = (document.getElementById('sound') as HTMLAudioElement).captureStream();
   // (document.getElementById('sound') as HTMLAudioElement).play();
-  window.vol = [0.0];
+  window.vol = [0];
+  for(var i=0;i<BUFFER_SIZE;i++){
+    window.vol.push(0);
+  }
   if (err) {
     return
   }
 
   // Next we create an analyser node to intercept data from the mic
   const context = new AudioContext()
-  //const analyser = context.createAnalyser()
-
+  
   // And then we connect them together
   var source = context.createMediaStreamSource(stream);
-  //source.connect(analyser)
+  var analyser = new PitchAnalyser(context,source);
+//   analyser.minDecibels = -90;
+// analyser.maxDecibels = -10;
 
-  const demoCode = (context) => {
-    context.audioWorklet.addModule(('./bypass-processor.js')).then(() => {
-      // const oscillator = new OscillatorNode(context);
-      const bypasser = new AudioWorkletNode(context, 'bypass-processor');
-      source.connect(bypasser).connect(context.destination);
-      // oscillator.start();
-    });
-  };
+//   analyser.fftSize = 2048;
+  //source.connect(analyser)
+  function getAvePitch(){
+    return analyser.frequency||0;
+  }
+  window.getAvePitch=getAvePitch;
+
+  // const demoCode = (context) => {
+  //   context.audioWorklet.addModule(('./bypass-processor.js')).then(() => {
+  //     // const oscillator = new OscillatorNode(context);
+  //     const bypasser = new AudioWorkletNode(context, 'bypass-processor');
+  //     source.connect(bypasser).connect(context.destination);
+  //     // oscillator.start();
+  //   });
+  // };
   //context.audioWorklet.addModule('bypass-processor.js');
   // demoCode(context);
   // registerProcessor('bypass-processor', BypassProcessor);
-  const captureNode = context.createScriptProcessor(subsamp, 1, 1);
-  console.log(context.sampleRate);
-  captureNode.onaudioprocess = function (e) {
-    // console.log("HI")
-    var vu = e.inputBuffer.getChannelData(0);
-    var ave = vu.map(Math.abs).reduce((a, b) => a + b, 0) / vu.length;
-    window.vScale=1.0;//window.vScale*0.1+1/Math.max(ave,0.01)*0.9;
-    var nv = [];
-    for (var i = 0; i < vu.length; i++) {
+  // const captureNode = context.createScriptProcessor(subsamp, 1, 1);
+  // console.log(context.sampleRate);
+  // captureNode.onaudioprocess = function (e) {
+    
+    // window.mul=getAvePitch()/fund;
+    // // console.log("HI")
+    // var vu = e.inputBuffer.getChannelData(0);
+    // var ave = vu.map(Math.abs).reduce((a, b) => a + b, 0) / vu.length;
+    // window.vScale=1.0;//window.vScale*0.1+1/Math.max(ave,0.01)*0.9;
+    // var nv = [];
+    // for (var i = 0; i < vu.length; i++) {
 
-      nv[i] = window.gen?vu[i]*window.vScale:Math.sin(Math.PI*2*samN/context.sampleRate*fund*window.mul)*0.5;//Math.abs(vu[i])<0.0?0:vu[i];
-      samN += 1;
-    }
-    if (stepsT * context.sampleRate < window.vol.length && window.fastMode) {
-      window.vol = window.vol.concat(nv);//vol.concat(vu);
-    } else {
-      if (window.fastMode) {
-        stepsT = stepsT - window.vol.length / context.sampleRate;
-        window.vol = nv;
-      } else {
-        stepsT = (((stepsT - vu.length / context.sampleRate) % (1 / mc) + (1 / mc)) % (1 / mc));
-        window.vol = nv;//vol.concat(vu);//ave*1024;//(ave>0?vu.reduce((a,b)=>Math.max(a,b),0):vu.reduce((a,b)=>Math.min(a,b),0))/2+ave/2;///vu.length*128.0;
-      }
-    }
+    //   nv[i] = window.gen?vu[i]*window.vScale:Math.sin(Math.PI*2*samN/context.sampleRate*fund*window.mul)*0.5;//Math.abs(vu[i])<0.0?0:vu[i];
+    //   samN += 1;
+    // }
+    // if (stepsT * context.sampleRate < window.vol.length && window.fastMode) {
+    //   window.vol = window.vol.concat(nv);//vol.concat(vu);
+    // } else {
+    //   if (window.fastMode) {
+    //     stepsT = stepsT - window.vol.length / context.sampleRate;
+    //     window.vol = nv;
+    //   } else {
+    //     stepsT = (((stepsT - vu.length / context.sampleRate) % (1 / mc) + (1 / mc)) % (1 / mc));
+    //     window.vol = nv;//vol.concat(vu);//ave*1024;//(ave>0?vu.reduce((a,b)=>Math.max(a,b),0):vu.reduce((a,b)=>Math.min(a,b),0))/2+ave/2;///vu.length*128.0;
+    //   }
+    // }
 
     //console.log(vu)
     // rawLeftChannelData is now a typed array with floating point samples
-  };
+  // };
   console.log(source);
-  source.connect(captureNode).connect(context.destination);
+  //source.connect(captureNode).connect(context.destination);
   var getVol = () => {
     var rn = new Date().getTime() / 1000 * context.sampleRate;
     return window.vol[Math.floor(rn % subsamp)]
@@ -107,7 +296,10 @@ require('getusermedia')({ audio: true }, function (err, stream) {
     //var ln=lastVolSample* context.sampleRate;
     var rn = stepsT * context.sampleRate;
     var ler = rn % 1;
-    return (window.vol[Math.floor(rn % subsamp)] || 0) * (1 - ler) + (window.vol[Math.floor((rn + 1) % subsamp)] || 0) * ler;
+    
+    var r=Math.sin(Math.PI*2*stepsT*fund*window.mul)*0.125+((window.vol[Math.floor(rn % subsamp)] || 0) * (1 - ler) + (window.vol[Math.floor((rn + 1) % subsamp)] || 0) * ler);
+    stepsT = stepsT%(1/(fund*window.mul));
+    return r;
   }
   // source.start();
 
@@ -472,9 +664,9 @@ var vr=`
         vec3 mep=vec3(uv2,texture2D(texture,uv2).z);
         float hb=0.0;
         float tt=0.0;
-        for(int i=-2;i<=2;i++){
-          for(int j=-2;j<=2;j++){
-            if((i*i>0 || j*j>0 )&& length(vec2(i,j))<=10.0){//} && abs(float(i*j))<1.0){
+        for(int i=-8;i<=8;i++){
+          for(int j=-8;j<=8;j++){
+            if((i*i>0 || j*j>0 )&& length(vec2(i,j))<=8.0){//} && abs(float(i*j))<1.0){
               
             vec2 op=uv2+vec2(float(i),float(j))/resp.xy*qb;
             vec2 op2=uv2+vec2(float(j),-float(i))/resp.xy*qb;
@@ -493,10 +685,11 @@ var vr=`
             //hb=hb+texture2D(texture,op).z/gnB;
               vec3 opp=vec3(op,texture2D(texture,op).z)-mep;
               vec3 opp2=vec3(op2,texture2D(texture,op2).z)-mep;
-              normal+=normalize(cross(opp,opp2));
+              normal+=normalize(cross(opp,opp2)/length(opp)/length(opp2));///vec3(vec2(length(opp)*length(opp2)),0.001));
             }
           }
         }
+        normal.z=0.01*normal.z;
         normal=normalize(normal);
         normal.xy=normalize(jDir);
         
@@ -512,9 +705,9 @@ var vr=`
           colA=mod(colA,1.0);
           //colA+=0.5;
         //}
-        // if(gnB*0.5<gn){
-        //   normal=-normal;
-        // }
+        if(hb/tt<0.5){
+          normal.z=-normal.z;
+        }
        
         gn=((hb/tt*2.0-1.0)*2.0)/2.0;
 //         if(1.0-texture2D(texture,uv2).z/texture2D(texture,vec2(0.0)).z<0.5){
@@ -524,13 +717,13 @@ var vr=`
         // if(gn<0.5){
         //   gn=0.0;
         // }
-        vec3 col=hsl2rgb(vec3(mod(colA,1.0),1.0,min(max(gn,0.0),1.0)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
+        vec3 col=hsl2rgb(vec3(mod(colA,1.0),1.0,min(max(gn*0.75+0.0*-normal.z/4.0+0.25 +0.0*(0.5+texture2D(texture,vec2(0.0)).z*8.0),0.0),1.0)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
       vec4 cooo = vec4(col,1.0);
       //gl_FragColor=vec4(vec3(1.0-texture2D(texture,uv2).z/texture2D(texture,vec2(0.0)).z,1.0-texture2D(textureB,uv2).z/texture2D(textureB,vec2(0.0)).z,1.0-texture2D(textureC,uv2).z/texture2D(textureC,vec2(0.0)).z),1.0);
     //gl_FragColor=vec4(vec3(texture2D(texture,uv2).z,texture2D(textureB,uv2).z,texture2D(textureC,uv2).z),1.0);
      
       
-      gl_FragColor=cooo+texture2D(p,uv)*0.0;
+      gl_FragColor=cooo*0.5+texture2D(p,uv)*0.5;//-vec4(vec3(0.2),0.0);
     }`,
 
     vert: `
@@ -586,103 +779,35 @@ var magic=(function () {
     //     color: [0.5, 0.5, 0.5, 1]
     //   })
     var tm = new Date().getTime();//*2-lastSTm;
-    // while(lastSTm<tm){
-    //   lastSTm+=1000/simF(mpp);
+    while(lastSTm<tm){
+      lastSTm+=1000/simF(mpp);
 
-    //   stepsQ+=1;
-    //   // if(tm-lastSTm>1000){
-    //   //  console.log("sps",stepsQ,"need",mc*harmonicPlate.detail,context.sampleRate/(mc*harmonicPlate.detail))
-    //   //   lastSTm=tm;
-    //   //   stepsQ=0;
-    //   // }
-    //   if(stepsT*context.sampleRate<window.vol.length){
-    //   drawFeedbackB[flips % 2]();
-    //   drawFeedbackC[flips % 2]();
-    //   drawFeedback[(flips++) % 2]();
-    //   stepsT+=1/simF(mpp);
-    //   }
-    //   if(new Date().getTime()-tm>1000/60){
-    //     break;
-    //   }
-    // }
-    // drawNi();
-    // while(new Date().getTime()-tm<1000/60){
-    //   lastSTm+=1000/simF(mpp);
-
-    //   stepsQ+=1;
-    //   // if(tm-lastSTm>1000){
-    //   //  console.log("sps",stepsQ,"need",mc*harmonicPlate.detail,context.sampleRate/(mc*harmonicPlate.detail))
-    //   //   lastSTm=tm;
-    //   //   stepsQ=0;
-    //   // }
-    //   if(stepsT*context.sampleRate<window.vol.length){
-    //   drawFeedbackB[flips % 2]();
-    //   drawFeedbackC[flips % 2]();
-    //   drawFeedback[(flips++) % 2]();
-    //   stepsT+=1/simF(mpp);
-    //   }
-      
-    // }
-
-    for (var i = 0; i < 4096; i++) {
-      stepsQ += 1;
-      if (stepsT * context.sampleRate < window.vol.length) {
-
-        // var tm=new Date().getTime();
-        // if(tm-lastSTm>1000){
-        //  console.log("sps2",stepsQ,"need",mc*harmonicPlate.detail,context.sampleRate/(mc*harmonicPlate.detail))
-        //   lastSTm=tm;
-        //   stepsQ=0;
-        // }
-        
-        // drawFeedbackB[flips % 2]();
-        // drawFeedbackC[flips % 2]();
-        drawFeedback();
+      stepsQ+=1;
+      // if(tm-lastSTm>1000){
+      //  console.log("sps",stepsQ,"need",mc*harmonicPlate.detail,context.sampleRate/(mc*harmonicPlate.detail))
+      //   lastSTm=tm;
+      //   stepsQ=0;
+      // }
+      if(stepsT* context.sampleRate < window.vol.length){
+      drawFeedback();
         fboA.swap();
-        
-        stepsT += 1 / simF(mpp);
-      }else{
-        stepsQ += (4096-i);
-        break;
-        
+      stepsT+=1/simF(mpp);
       }
-      window.gd = [stepsT * context.sampleRate, window.vol.length]
-      // if (new Date().getTime() - tm > 1000 / 10) {
+      
+      // if(new Date().getTime()-tm>1000/60){
       //   break;
       // }
     }
     
-//pixels({copy:true})
-    var tm = new Date().getTime();
-    var mkMN=1;//5.9;
-    if (tm - lastFm > 1000) {
-      console.log("sps", stepsQ, "need", mc * harmonicPlate.detail, context.sampleRate / (mc * harmonicPlate.detail),harmonicPlate.detail)
-      lastFm = tm;
-      var sr = 0;//Math.log(stepsQ/context.sampleRate)/Math.log(2);
-      sr = Math.min(Math.floor(sr), 0);
-      var subSuper = Math.floor(context.sampleRate);
-      if (stepsQ >= subSuper/mkMN) {
-        mpp = 1;//Math.max(  subSuper/stepsQ, 0.125);
-        console.log("subSuper", subSuper, "stepsQ", stepsQ)
-        window.fastMode = true;
-        if (mpp > mkMN) {
-          mpp = mkMN;
-          window.fastMode = false;
-        }
-      } else {
-        mpp = mkMN;
-        window.fastMode = false;
-      }
-      stepsQ = 0;
-    }
-    window.mpp = mpp;
-    lastSTm = tm;
 
-    window.setTimeout(magic,0);
+   // window.setTimeout(magic,1000/60);
       
   })
-  magic();
+  
   regl.frame(function () {
+    magic();
     drawNi();
+    pixels({copy: true})
+    
   });
 });

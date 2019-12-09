@@ -48,6 +48,8 @@ const BUFFER_SIZE = 1024;//subsamp;
 var PitchAnalyser = function (context,source) {
     this.isReady = false;
     this.frequency=1;
+    this.amplitude=0;
+    this.waveOffset=0;
     this.context  = context;
     this.ac=gpu.createKernel(
       function(input:number[]) {
@@ -162,7 +164,19 @@ if(window.vol.length>=BUFFER_SIZE*8 ){
     // Calculate frequency from median value of distances between peaks
     diffs = diff(locations);
     var freq = this.context.sampleRate / median(diffs);
-    this.frequency=freq;//*0.1+this.frequency*0.9;
+    var gd=1;
+    if(freq/fund<Math.pow(2,5)){
+    while(freq>fund*Math.pow(2,23/12)){
+      freq=freq/4;
+      gd=gd/4;
+    }
+    var amp=Math.max(...window.vol);
+
+    this.waveOffset=window.vol.indexOf(amp);
+    var ampL=gd;//amp/(amp+this.amplitude>0?amp+this.amplitude:1);
+    this.frequency=freq*ampL+this.frequency*(1-ampL);
+    this.amplitude=amp;
+  }
 }
     this.isReady = true;
 };
@@ -243,6 +257,10 @@ require('getusermedia')({ audio: true }, function (err, stream) {
     return analyser.frequency||0;
   }
   window.getAvePitch=getAvePitch;
+  function getAmplitude(){
+    return analyser.amplitude||0;
+  }
+  window.getAmplitude=getAmplitude;
 
   // const demoCode = (context) => {
   //   context.audioWorklet.addModule(('./bypass-processor.js')).then(() => {
@@ -297,7 +315,7 @@ require('getusermedia')({ audio: true }, function (err, stream) {
     var rn = stepsT * context.sampleRate;
     var ler = rn % 1;
     
-    var r=Math.sin(Math.PI*2*stepsT*fund*window.mul)*0.125+((window.vol[Math.floor(rn % subsamp)] || 0) * (1 - ler) + (window.vol[Math.floor((rn + 1) % subsamp)] || 0) * ler);
+    var r=Math.cos(Math.PI*2*(stepsT-analyser.waveOffset/context.sampleRate)*getAvePitch())*getAmplitude()+0*((window.vol[Math.floor(rn % subsamp)] || 0) * (1 - ler) + (window.vol[Math.floor((rn + 1) % subsamp)] || 0) * ler);
     stepsT = stepsT%(1/(fund*window.mul));
     return r;
   }
@@ -636,7 +654,7 @@ var vr=`
      
       gl_FragColor = vec4(vec3( min(max(1.0-gn/texture2D(texture,vec2(0.0)).z,0.0),1.0)),1.0);
         float mp=1.0;
-        float qb=0.5;
+        float qb=1.0;
         vec2 up=uv2+vec2(0.0,-1.0)/resp.xy*qb;
         vec2 left=uv2+vec2(-1.0,0.0)/resp.xy*qb;
         vec2 right=uv2+vec2(1.0,0.0)/resp.xy*qb;
@@ -664,16 +682,18 @@ var vr=`
         vec3 mep=vec3(uv2,texture2D(texture,uv2).z);
         float hb=0.0;
         float tt=0.0;
-        for(int i=-8;i<=8;i++){
-          for(int j=-8;j<=8;j++){
-            if((i*i>0 || j*j>0 )&& length(vec2(i,j))<=8.0){//} && abs(float(i*j))<1.0){
+        vec2 cp=vec2(0.0);
+        for(int i=-2;i<=2;i++){
+          for(int j=-2;j<=2;j++){
+            if((i*i>0 || j*j>0 )&& length(vec2(i,j))<=2.0){//} && abs(float(i*j))<1.0){
               
             vec2 op=uv2+vec2(float(i),float(j))/resp.xy*qb;
             vec2 op2=uv2+vec2(float(j),-float(i))/resp.xy*qb;
             float pV=pow(length(vec2(i,j)),0.0);
             tt+=pV;
-            if(texture2D(texture,op).z>texture2D(texture,uv2).z){//abs(texture2D(texture,op).y-0.5)>abs(texture2D(texture,uv2).y-0.5)){// && texture2D(texture,uv2-op*2.0).z>gn){
+            if(texture2D(texture,op).z>texture2D(texture,uv2).z){//} && texture2D(texture,uv2*2.0-op).z>texture2D(texture,uv2).z){//abs(texture2D(texture,op).y-0.5)>abs(texture2D(texture,uv2).y-0.5)){// && texture2D(texture,uv2-op*2.0).z>gn){
               hb+=pV;
+              cp+=vec2(float(i),float(j));
               }
               float mmm=1.0;
                 if(vec2(float(i),float(j)).y<0.0 ||(vec2(float(i),float(j)).y<=0.0 &&vec2(float(i),float(j)).x<=0.0)){
@@ -708,22 +728,22 @@ var vr=`
         if(hb/tt<0.5){
           normal.z=-normal.z;
         }
-       
-        gn=((hb/tt*2.0-1.0)*2.0)/2.0;
+       float th=0.5;//(tt-40.0)/tt;
+        gn=(hb/tt-th)/(1.0-th);
 //         if(1.0-texture2D(texture,uv2).z/texture2D(texture,vec2(0.0)).z<0.5){
 // gn=0.0;
 //         }
         //gn=gn*gn;
-        // if(gn<0.5){
-        //   gn=0.0;
-        // }
-        vec3 col=hsl2rgb(vec3(mod(colA,1.0),1.0,min(max(gn*0.75+0.0*-normal.z/4.0+0.25 +0.0*(0.5+texture2D(texture,vec2(0.0)).z*8.0),0.0),1.0)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
+        if(gn<0.5){//||length(cp)>10.0){
+          gn=0.0;
+        }
+        vec3 col=2.0*hsl2rgb(vec3(mod(colA,1.0),0.75,min(max(gn*1.0-0.25+0.0*-normal.z/4.0+0.25 +0.0*(0.5+texture2D(texture,vec2(0.0)).z*8.0),0.0),0.5)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
       vec4 cooo = vec4(col,1.0);
       //gl_FragColor=vec4(vec3(1.0-texture2D(texture,uv2).z/texture2D(texture,vec2(0.0)).z,1.0-texture2D(textureB,uv2).z/texture2D(textureB,vec2(0.0)).z,1.0-texture2D(textureC,uv2).z/texture2D(textureC,vec2(0.0)).z),1.0);
     //gl_FragColor=vec4(vec3(texture2D(texture,uv2).z,texture2D(textureB,uv2).z,texture2D(textureC,uv2).z),1.0);
      
       
-      gl_FragColor=cooo*0.5+texture2D(p,uv)*0.5;//-vec4(vec3(0.2),0.0);
+      gl_FragColor=cooo*1.0;//+texture2D(p,uv)*0.9;//-vec4(vec3(0.005),0.0);
     }`,
 
     vert: `
@@ -794,9 +814,9 @@ var magic=(function () {
       stepsT+=1/simF(mpp);
       }
       
-      // if(new Date().getTime()-tm>1000/60){
-      //   break;
-      // }
+      if(new Date().getTime()-tm>1000/60){
+        break;
+      }
     }
     
 
@@ -807,7 +827,7 @@ var magic=(function () {
   regl.frame(function () {
     magic();
     drawNi();
-    pixels({copy: true})
+    //pixels({copy: true})
     
   });
 });

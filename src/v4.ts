@@ -329,7 +329,7 @@ require('getusermedia')({ audio: true }, function (err, stream) {
   // })
 
 
-  const pixels = regl.texture({wrapS:"clamp",wrapT:"clamp"});
+  const pixels = regl.texture({wrapS:"clamp",wrapT:"clamp",mag: 'linear',min: 'linear'});
   const fboA = doubleFbo("linear");
   window.fboA=fboA;
   
@@ -681,9 +681,9 @@ var vr=`
         float hb=0.0;
         float tt=0.0;
         vec2 cp=vec2(0.0);
-        for(int i=-2;i<=2;i++){
-          for(int j=-2;j<=2;j++){
-            if((i*i>0 || j*j>0 )&& length(vec2(i,j))<=2.0){//} && abs(float(i*j))<1.0){
+        for(int i=-4;i<=4;i++){
+          for(int j=-4;j<=4;j++){
+            if((i*i>0 || j*j>0 )&& length(vec2(i,j))<=4.0){//} && abs(float(i*j))<1.0){
               
             vec2 op=uv2+vec2(float(i),float(j))/resp.xy*qb;
             vec2 op2=uv2+vec2(float(j),-float(i))/resp.xy*qb;
@@ -741,7 +741,7 @@ var vr=`
     //gl_FragColor=vec4(vec3(texture2D(texture,uv2).z,texture2D(textureB,uv2).z,texture2D(textureC,uv2).z),1.0);
      
       
-      gl_FragColor=cooo*1.0;//+texture2D(p,uv)*0.9;//-vec4(vec3(0.005),0.0);
+      gl_FragColor=cooo*0.25+texture2D(p,uv)*0.8;//-vec4(vec3(0.005),0.0);
     }`,
 
     vert: `
@@ -818,14 +818,18 @@ var magic=(function () {
     }
     
 
-   // window.setTimeout(magic,1000/60);
+   //window.setTimeout(magic,1000/60);
       
   })
-  
+  var qz=0;
   regl.frame(function () {
     magic();
     drawNi();
-    //pixels({copy: true})
+    if(qz%1==0){
+    pixels({copy: true,min: 'nearest',
+    mag: 'nearest'})
+    }
+    qz++;
     
   });
 });

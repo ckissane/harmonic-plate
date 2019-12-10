@@ -39421,7 +39421,7 @@ detailController.onFinishChange(function (value) {
 var _mouse = require('mouse-change')();
 
 var subsamp = 2048 * 4;
-var fund = 261.625565 / 2;
+var fund = 261.625565;
 var mc = fund;
 window.mul = Math.pow(17, 0.5);
 var mpp = 1.0; //0.5;
@@ -39692,7 +39692,7 @@ require('getusermedia')({
     //var ln=lastVolSample* context.sampleRate;
     var rn = stepsT * context.sampleRate;
     var ler = rn % 1;
-    var r = Math.cos(Math.PI * 2 * (stepsT - analyser.waveOffset / context.sampleRate) * getAvePitch()) * getAmplitude() + 0 * ((window.vol[Math.floor(rn % subsamp)] || 0) * (1 - ler) + (window.vol[Math.floor((rn + 1) % subsamp)] || 0) * ler);
+    var r = Math.cos(Math.PI * 2 * (stepsT - analyser.waveOffset / context.sampleRate) * getAvePitch()) * getAmplitude() + 0.25 * ((window.vol[Math.floor(rn % subsamp)] || 0) * (1 - ler) + (window.vol[Math.floor((rn + 1) % subsamp)] || 0) * ler);
     stepsT = stepsT % (1 / (fund * window.mul));
     return r;
   } // source.start();
@@ -39925,7 +39925,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "38879" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "33793" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};

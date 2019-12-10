@@ -28,7 +28,7 @@ detailController.onFinishChange(function(value) {
 // const regl = require('regl')({extensions:["OES_texture_float"]})
 const mouse = require('mouse-change')()
 var subsamp = 2048*4;
-var fund =261.625565/2;
+var fund =261.625565;
 var mc = fund;
 window.mul=17**0.5;
 var mpp = 1.0;//0.5;
@@ -313,7 +313,7 @@ require('getusermedia')({ audio: true }, function (err, stream) {
     var rn = stepsT * context.sampleRate;
     var ler = rn % 1;
     
-    var r=Math.cos(Math.PI*2*(stepsT-analyser.waveOffset/context.sampleRate)*getAvePitch())*getAmplitude()+0*((window.vol[Math.floor(rn % subsamp)] || 0) * (1 - ler) + (window.vol[Math.floor((rn + 1) % subsamp)] || 0) * ler);
+    var r=Math.cos(Math.PI*2*(stepsT-analyser.waveOffset/context.sampleRate)*getAvePitch())*getAmplitude()+0.25*((window.vol[Math.floor(rn % subsamp)] || 0) * (1 - ler) + (window.vol[Math.floor((rn + 1) % subsamp)] || 0) * ler);
     stepsT = stepsT%(1/(fund*window.mul));
     return r;
   }

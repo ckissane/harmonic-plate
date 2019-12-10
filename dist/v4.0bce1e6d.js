@@ -39447,19 +39447,7 @@ var PitchAnalyser = function PitchAnalyser(context, source) {
   this.amplitude = 0;
   this.waveOffset = 0;
   this.context = context;
-  this.ac = gpu.createKernel(function (input) {
-    var sum = 0;
-
-    for (var j = 0; j < this.constants.n; j++) {
-      if (j + this.thread.x < this.constants.n) {
-        sum += input[j] * input[j + this.thread.x]; // Pad input with zeroes
-      } else {
-        break;
-      }
-    }
-
-    return sum;
-  }, {
+  this.ac = gpu.createKernel("function(input) {\n        let sum = 0.0;\n        for(let jk = 0.0; jk < this.constants.n; jk++) {\n          if(jk+this.thread.x<this.constants.n){\n            sum += input[jk] * input[jk+this.thread.x]; // Pad input with zeroes\n        \n          }\n        }\n        \n        return sum ;\n       \n      }", {
     output: [BUFFER_SIZE * 8],
     constants: {
       n: BUFFER_SIZE * 8
@@ -39924,7 +39912,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "37749" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "33369" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};

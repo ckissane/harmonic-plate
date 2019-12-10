@@ -52,20 +52,18 @@ var PitchAnalyser = function (context,source) {
     this.waveOffset=0;
     this.context  = context;
     this.ac=gpu.createKernel(
-      function(input:number[]) {
-        let sum = 0;
-        for (let j = 0; j < this.constants.n; j++) {
-          if(j+this.thread.x<this.constants.n){
-            sum += input[j] * input[j+this.thread.x]; // Pad input with zeroes
+      `function(input) {
+        let sum = 0.0;
+        for(let jk = 0.0; jk < this.constants.n; jk++) {
+          if(jk+this.thread.x<this.constants.n){
+            sum += input[jk] * input[jk+this.thread.x]; // Pad input with zeroes
         
-          }else{
-            break;
           }
         }
         
         return sum ;
        
-      },
+      }`,
       {
         output: [BUFFER_SIZE*8],
         constants:{n:BUFFER_SIZE*8}

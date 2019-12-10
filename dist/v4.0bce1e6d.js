@@ -39421,7 +39421,7 @@ detailController.onFinishChange(function (value) {
 var _mouse = require('mouse-change')();
 
 var subsamp = 2048 * 4;
-var fund = 261.625565;
+var fund = 261.625565 / 2;
 var mc = fund;
 window.mul = Math.pow(17, 0.5);
 var mpp = 1.0; //0.5;
@@ -39912,7 +39912,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "33369" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "34023" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};

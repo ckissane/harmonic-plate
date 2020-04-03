@@ -19,7 +19,8 @@
   },
   "homepage": "https://github.com/ckissane/harmonic-plate#readme",
   "devDependencies": {
-    "parcel": "^1.12.4"
+    "parcel": "^1.12.4",
+    "typescript": "^3.8.3"
   },
   "dependencies": {
     "@types/dat.gui": "^0.7.5",

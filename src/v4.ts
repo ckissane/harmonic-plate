@@ -28,7 +28,7 @@ detailController.onFinishChange(function(value) {
 // const regl = require('regl')({extensions:["OES_texture_float"]})
 const mouse = require('mouse-change')()
 var subsamp = 2048*4;
-var fund =261.625565;
+var fund =261.625565*2*2;
 var mc = fund;
 window.mul=17**0.5;
 var mpp = 1.0;//0.5;
@@ -681,6 +681,9 @@ var vr=`
         float hb=0.0;
         float tt=0.0;
         vec2 cp=vec2(0.0);
+        float maxChangeD=0.001;
+        vec3 minColor=vec3(1.0,1.0,1.0);
+        vec3 maxColor=vec3(0.0,0.0,0.0);
         for(int i=-4;i<=4;i++){
           for(int j=-4;j<=4;j++){
             if((i*i>0 || j*j>0 )&& length(vec2(i,j))<=4.0){//} && abs(float(i*j))<1.0){
@@ -688,6 +691,9 @@ var vr=`
             vec2 op=uv2+vec2(float(i),float(j))/resp.xy*qb;
             vec2 op2=uv2+vec2(float(j),-float(i))/resp.xy*qb;
             float pV=pow(length(vec2(i,j)),0.0);
+            vec2 smapC=uv+vec2(float(j),-float(i))/res.xy*5.0;
+            minColor=min(texture2D(p,smapC).xyz+vec3(maxChangeD*length(vec2(i,j))),minColor);
+            maxColor=max(texture2D(p,smapC).xyz-vec3(maxChangeD*length(vec2(i,j))),maxColor);
             tt+=pV;
             if(texture2D(texture,op).z>texture2D(texture,uv2).z){//} && texture2D(texture,uv2*2.0-op).z>texture2D(texture,uv2).z){//abs(texture2D(texture,op).y-0.5)>abs(texture2D(texture,uv2).y-0.5)){// && texture2D(texture,uv2-op*2.0).z>gn){
               hb+=pV;
@@ -733,15 +739,21 @@ var vr=`
 //         }
         //gn=gn*gn;
         if(gn<0.5){//||length(cp)>10.0){
-          gn=0.0;
+          //gn=0.0;
         }
         vec3 col=2.0*hsl2rgb(vec3(mod(colA,1.0),0.75,min(max(gn*1.0-0.25+0.0*-normal.z/4.0+0.25 +0.0*(0.5+texture2D(texture,vec2(0.0)).z*8.0),0.0),0.5)));//max(1.0-10.0*pow(pow((cVa.x-0.5)*4.0,2.0)+pow(cVa.y*8.0,2.0),0.5),0.0)));
       vec4 cooo = vec4(col,1.0);
       //gl_FragColor=vec4(vec3(1.0-texture2D(texture,uv2).z/texture2D(texture,vec2(0.0)).z,1.0-texture2D(textureB,uv2).z/texture2D(textureB,vec2(0.0)).z,1.0-texture2D(textureC,uv2).z/texture2D(textureC,vec2(0.0)).z),1.0);
     //gl_FragColor=vec4(vec3(texture2D(texture,uv2).z,texture2D(textureB,uv2).z,texture2D(textureC,uv2).z),1.0);
-     
+    float jUp=0.005;
+    float jDown=0.000;
+    maxColor=max(maxColor,texture2D(p,uv).xyz+jUp);
+    minColor=min(minColor,texture2D(p,uv).xyz-jDown);
+     cooo.x=max(min(cooo.x,maxColor.x),minColor.x);
+     cooo.y=max(min(cooo.y,maxColor.y),minColor.y);
+     cooo.z=max(min(cooo.z,maxColor.z),minColor.z);
       
-      gl_FragColor=cooo*0.25+texture2D(p,uv)*0.8;//-vec4(vec3(0.005),0.0);
+      gl_FragColor=cooo;//*0.25+texture2D(p,uv)*0.8;//-vec4(vec3(0.005),0.0);
     }`,
 
     vert: `

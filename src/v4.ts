@@ -28,7 +28,7 @@ detailController.onFinishChange(function(value) {
 // const regl = require('regl')({extensions:["OES_texture_float"]})
 const mouse = require('mouse-change')()
 var subsamp = 2048*4;
-var fund =261.625565*2*2;
+var fund =261.625565;
 var mc = fund;
 window.mul=17**0.5;
 var mpp = 1.0;//0.5;

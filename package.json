@@ -4,32 +4,30 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "parcel src/index.html",
-    "prod": "parcel build src/index.html --public-url='./' --out-dir ./"
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ckissane/harmonic-plate.git"
   },
   "keywords": [],
-  "author": "",
+  "author": "Cole Kissane",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/ckissane/harmonic-plate/issues"
   },
   "homepage": "https://github.com/ckissane/harmonic-plate#readme",
   "devDependencies": {
-    "parcel": "^1.12.4",
-    "typescript": "^3.8.3"
+    "@types/dat.gui": "^0.7.6",
+    "typescript": "^4.2.3",
+    "vite": "^2.1.5"
   },
   "dependencies": {
-    "@types/dat.gui": "^0.7.5",
-    "@types/node": "^12.12.14",
-    "autocorrelation": "0.0.5",
-    "dat.gui": "^0.7.6",
+    "dat.gui": "^0.7.7",
     "getusermedia": "^2.0.1",
-    "gpu.js": "^2.3.0",
-    "mouse-change": "^1.4.0",
-    "regl": "^1.3.13"
+    "gpu.js": "^2.11.3",
+    "regl": "^2.1.0"
   }
 }

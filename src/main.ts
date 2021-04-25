@@ -7,7 +7,7 @@ import './style.css'
 import reglCreate from 'regl';
 import { GPU } from 'gpu.js';
 // import getusermedia from 'getusermedia'
-const getusermedia=(o,cb)=>cb();
+const getusermedia=(o,cb)=>window.onload=()=>cb();
 
 import * as dat from 'dat.gui';
 class HarmonicPlate {

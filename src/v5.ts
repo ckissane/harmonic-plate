@@ -162,9 +162,10 @@ getusermedia({ audio: true }, function (err, stream) {
     // if(window.vol.length<rn){
     //   console.log("OOPS",window.vol.length,rn)
     // }
-    var r = 1 * ((window.vol[Math.floor(rn) % window.vol.length] || 0) * (1 - ler) + (window.vol[Math.floor((rn + 1)) % window.vol.length] || 0) * ler);
+    var realv = 1 * ((window.vol[Math.floor(rn) % window.vol.length] || 0) * (1 - ler) + (window.vol[Math.floor((rn + 1)) % window.vol.length] || 0) * ler);
+    var r=realv;
     // stepsT = stepsT % 1;//(1 / (fund * window.mul));
-    // return Math.sin(stepsT * fund * Math.PI * 2);//*harmonicPlate.detail;
+    // return Math.sin(stepsT * fund * Math.PI * 2* window.mul);//*harmonicPlate.detail;
     // window.mr=Math.min(r,window.mr);
     return r;//*harmonicPlate.detail;
   }
@@ -231,14 +232,11 @@ getusermedia({ audio: true }, function (err, stream) {
    if(t<fadeIn){
      easeIn=t/fadeIn;
    }
-     float mpt=mp;///2.0;
+     float mpt=mp;
      
      vec2 cVa=texture2D(texture,uv).xy;
-     //vec2 cVa0=texture2D(texture,uv).xy;
      float sX=cVa.x+0.0;
      float gn=texture2D(texture,uv).z;
-     cVa.y=cVa.y*2.0-1.0;
-     //cVa0.y=cVa0.y*2.0-1.0;
      
      float q=0.0;
      float qC=0.0;
@@ -255,23 +253,19 @@ getusermedia({ audio: true }, function (err, stream) {
      vec2 down=uv+vec2(0.0,1.0)/res.xy*s;
      
      vec2 uVa=texture2D(texture,up).xy;
-     uVa.y=uVa.y*2.0-1.0;
      vec2 lVa=texture2D(texture,left).xy;
-     lVa.y=lVa.y*2.0-1.0;
      vec2 rVa=texture2D(texture,right).xy;
-     rVa.y=rVa.y*2.0-1.0;
      vec2 dVa=texture2D(texture,down).xy;
-     dVa.y=dVa.y*2.0-1.0;
-     float oS=0.0;
+     float oS=0.5;
      q+=(dVa.x+dVa.y*oS-cVa.y*oS)*c;
      q+=(uVa.x+uVa.y*oS-cVa.y*oS)*c;
      q+=(lVa.x+lVa.y*oS-cVa.y*oS)*c;
      q+=(rVa.x+rVa.y*oS-cVa.y*oS)*c;
      qC+=c*4.0;
-     float pos=cVa.x-0.5;
+     float pos=cVa.x;
      
      float accel=(q/qC-cVa.x)*mpt;
-     float vel=(cVa.y+0.0);//+accel/2.0;
+     float vel=(cVa.y+0.0);
      cVa.y+=accel;
      
      
@@ -280,22 +274,23 @@ getusermedia({ audio: true }, function (err, stream) {
     
      if(t<fadeIn){
          
-         cVa=(vec2(0.5,0.0)*(1.0-easeIn)+cVa*(easeIn));
+         cVa=(vec2(0.0,0.0)*(1.0-easeIn)+cVa*(easeIn));
          pos=0.0*(1.0-easeIn)+pos*(easeIn);
          //gn=0.0;
      }
-     gnt=gn;//1.0;//abs(abs(rVa.x-0.5)+abs(lVa.x-0.5)+abs(uVa.x-0.5)+abs(dVa.x-0.5)-abs((rVa.x-0.5)+(lVa.x-0.5)+(uVa.x-0.5)+(dVa.x-0.5))*2.0)+abs(cVa.x-0.5);
+     gnt=gn;
      float apRat=pow(abs(-accel/mpt/mpt/pos),0.5);
-     gnt=pow(pow(pos,2.0)+pow(vel/mpt/mpt,2.0)/abs(-accel/mpt/mpt/pos),0.5);
+
+     //FIXME: don't pow 0
+     gnt=pow(pow(pos,2.0)+pow(vel/mpt/mpt,2.0)/pow(abs(-accel/mpt/mpt/pos),1.0),0.5);
     float H=gnt;
      
-     //cVa.y=(vec2(0.5,0.0)*0.001+cVa*0.999).y;
-     float j=1.0-length((((uv-vec2(0.5))*res.xy)))*1.3;//pow(2.0,-pow(length(abs(uv-vec2(0.5))*res.xy)/10.0,2.0));
+     float j=1.0-length((((uv-vec2(0.5))*res.xy)))*1.3;
      cVa.x+=cVa.y*mpt;
      
      if( j>0.0 ){
     j=1.0;
-     float dp=vol/2.0+0.5;
+     float dp=vol;
     
        cVa=(cVa*(1.0-j)+vec2(dp,0.0)*j);//cos(t*0.1*2.0*atan(0.0,-1.0))/4.0+0.5;
         }
@@ -318,15 +313,14 @@ getusermedia({ audio: true }, function (err, stream) {
      if(true||mod(float(t),1024.0*128.0)<1.0||abs(vel)>=abs(pos+abs(vel)*sign(pos))){
       
        float d=0.001;//abs(pos+abs(vel)*s
-     cVa=(vec2(0.5,0.0)*d+cVa*(1.0-d));
+     //cVa=(vec2(0.0,0.0)*d+cVa*(1.0-d));
  
      }
     
-     vec2 outp=vec2(cVa.x,cVa.y*0.5+0.5);
+     vec2 outp=vec2(cVa.x,cVa.y);
  
      gn=max(min(1.0,gn),0.0);
-     outp.x=max(min(1.0,outp.x),0.0);
-     outp.y=max(min(1.0,outp.y),0.0);
+     
      gl_FragColor = vec4(vec3(outp,gn),1.0);
  }`;
   var vr = `
@@ -476,7 +470,10 @@ getusermedia({ audio: true }, function (err, stream) {
              vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
              return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
          }
- 
+ float f(float ii){
+   float tj=ii+0.5;
+   return tj;
+ }
  void main( ){
    float time=t/1000.0;
    vec2 rc=vec2(min(res.x,res.y));
@@ -491,26 +488,27 @@ getusermedia({ audio: true }, function (err, stream) {
       
          //gl_FragColor = vec4(vec3( gn),1.0);
       //return;
-     vec2 texel = 1. / vec2(128.0).xy;//resp.xy;
+     vec2 texel = 1.0/resp.xy;//1. / vec2(128.0).xy;//resp.xy;
  
      vec2 n  = vec2(0.0, texel.y);
      vec2 e  = vec2(texel.x, 0.0);
      vec2 s  = vec2(0.0, -texel.y);
      vec2 w  = vec2(-texel.x, 0.0);
-     float hsc=-1.0/0.02;
-     float d   = (texture2D(texture, uv2).z-0.5)*hsc;
+     float hsc=-resp.x;
+     float d   = f(texture2D(texture, uv2).z-0.5)*hsc;
      //#define SIMPLE
      #ifdef SIMPLE
-     gl_FragColor = vec4(vec3(d),1.0);
+     gl_FragColor = vec4(vec3(texture2D(texture, uv2).z),1.0);
      #else
-     float d_n  = (texture2D(texture, fract(uv2+n)  ).z-0.5)*hsc;
-     float d_e  = (texture2D(texture, fract(uv2+e)  ).z-0.5)*hsc;
-     float d_s  = (texture2D(texture, fract(uv2+s)  ).z-0.5)*hsc;
-     float d_w  = (texture2D(texture, fract(uv2+w)  ).z-0.5)*hsc; 
-     float d_ne = (texture2D(texture, fract(uv2+n+e)).z-0.5)*hsc;
-     float d_se = (texture2D(texture, fract(uv2+s+e)).z-0.5)*hsc;
-     float d_sw = (texture2D(texture, fract(uv2+s+w)).z-0.5)*hsc;
-     float d_nw = (texture2D(texture, fract(uv2+n+w)).z-0.5)*hsc; 
+     float d_n  = f(texture2D(texture, fract(uv2+n)  ).z-0.5)*hsc;
+     float d_e  = f(texture2D(texture, fract(uv2+e)  ).z-0.5)*hsc;
+     float d_s  = f(texture2D(texture, fract(uv2+s)  ).z-0.5)*hsc;
+     float d_w  = f(texture2D(texture, fract(uv2+w)  ).z-0.5)*hsc; 
+     float d_ne = f(texture2D(texture, fract(uv2+n+e)).z-0.5)*hsc;
+     float d_se = f(texture2D(texture, fract(uv2+s+e)).z-0.5)*hsc;
+     float d_sw = f(texture2D(texture, fract(uv2+s+w)).z-0.5)*hsc;
+     float d_nw = f(texture2D(texture, fract(uv2+n+w)).z-0.5)*hsc; 
+     float ddI=0.5*pow((pow(abs(d_n-d)+abs(d-d_s),2.0)+pow(abs(d_e-d)+abs(d-d_w),2.0)+pow(abs(d_ne-d)+abs(d-d_sw),2.0)+pow(abs(d_se-d)+abs(d-d_nw),2.0))/2.0,0.5);
  
      float dxn[3];
      float dyn[3];
@@ -548,7 +546,7 @@ getusermedia({ audio: true }, function (err, stream) {
      vec3 avd = vec3(0);
      for(int i = 0; i < 3; i++) {
          for(int j = 0; j < 3; j++) {
-             vec2 dxy = vec2(dxn[i], dyn[j]);
+             vec2 dxy = vec2(dxn[i], dyn[j])/ddI/20.;
              float w = dcn[i] * dcn[j];
              vec3 bn = reflect(normalize(vec3(BUMP*dxy, -1.0)), vec3(0,1,0));
              avd += w * bn;
@@ -564,7 +562,7 @@ getusermedia({ audio: true }, function (err, stream) {
      // cheap occlusion with mipmaps
      float occ = 0.0;
      for (float m = 1.0; m <= 10.0; m +=1.0) {
-         float dm = (texture2D(texture, uv2, m).z-0.5)*hsc;
+         float dm = f(texture2D(texture, uv2, m).z-0.5)*hsc;
        occ += smoothstep(-8.0, 2.0, (d - dm))/(m*m);
      }
      vec2 dir=vec2(0.0,0.0);
@@ -572,11 +570,49 @@ getusermedia({ audio: true }, function (err, stream) {
      dir+=(e)*d_e;
      dir+=(s)*d_s;
      dir+=(w)*d_w;
-     
+     dir+=(n+e)*d_ne;
+     dir+=(s+e)*d_se;
+     dir+=(s+w)*d_sw;
+     dir+=(n+w)*d_nw;
+     vec2 rsi=normalize(dir)*texel.x;
+     float ssrg=f(texture2D(texture, uv2+rsi).z-0.5)*hsc;
+     float ssrg2=f(texture2D(texture, uv2+rsi/min(res.x,res.y)*resp.x*(min(res.x,res.y)/32.0)).z-0.5)*hsc;
      occ = pow(occ / 1.5, 2.0);
-     //float q=atan(dir.y,dir.x)/atan(1.0,0.0)/4.;
-     vec4 wow =   occ* vec4(0.05,0.05,0.05,0) + 2.5*vec4(0.9, 0.85, 0.8, 1)*spec;
+     float q=atan(dir.y,dir.x)/atan(1.0,0.0)/4.;
+     vec3 alb=vec3(0.05,0.05,0.05);
+    
+     ddI=ssrg-d;
+
+     alb=hsv2rgb(vec3(q*2.0,1.0,d>ssrg2?0.5:0.0));
+     alb=vec3(d>ssrg2?0.0:0.5);
+     float plent=-d/ddI*min(res.x,res.y)/resp.x;//d/hsc*min(res.x,res.y);//-d/ddI*min(res.x,res.y)/resp.x;//occ2;//-d/ddI*max(res.x,res.y)/resp.x;
+
+     //alb=hsv2rgb(vec3(q,1.0,plent<20.0?0.5:0.0));
+     vec4 wow =   occ* vec4(alb,0) + 2.5*vec4(0.9, 0.85, 0.8, 1)*spec;
+     wow.xyz=alb;
      wow.w=1.0;
+     vec2 cc2=uv*res.xy;
+     vec3 omg=vec3(1.0);
+     float dti=6.0;
+     float ssr=pow(0.5,0.5);
+     vec2 shift=vec2(0.0);
+     vec2 nDot=floor((cc2-shift)/dti+0.5)*dti+shift;
+     if(length(cc2-nDot)<dti*ssr*(1.0-wow.x)){
+       omg.x=0.0;
+     }
+     shift=vec2(dti/3.0);
+     nDot=floor((cc2-shift)/dti+0.5)*dti+shift;
+     if(length(cc2-nDot)<dti*ssr*(1.0-wow.y)){
+       omg.y=0.0;
+     }
+     shift=vec2(2.0*dti/3.0);
+     nDot=floor((cc2-shift)/dti+0.5)*dti+shift;
+     if(length(cc2-nDot)<dti*ssr*(1.0-wow.z)){
+       omg.z=0.0;
+     }
+     //wow.xyz=omg;//floor(wow.xyz*2.0+0.5+(mod(cc2.x+cc2.y,2.0)/2.0-0.5)/2.0)/2.0;
+     wow.xyz=(occ* vec4(wow.xyz,0) + 2.5*vec4(0.9, 0.85, 0.8, 1)*spec).xyz;
+
      gl_FragColor=wow;
      #endif
  
@@ -657,8 +693,12 @@ getusermedia({ audio: true }, function (err, stream) {
 
       if (performance.now() - tm > 1000 / 60) {
         // console.log(tO/(performance.now() - tm )*1000)
+        mpp*=1.1;
         break;
       }
+    }
+    if (performance.now() - tm < 1000 / 60/1.1) {
+    mpp=mpp/1.1;
     }
 
 

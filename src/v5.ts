@@ -301,7 +301,7 @@ getusermedia({ audio: true }, function (err, stream) {
          gnt=H;
          if(abs(gnt)<=1.0){//} && abs(pos)>gnt/2.0){//&& dot(pos,vel)>=0.0 && dot(vel+accel,vel)<=0.0 ){//} && abs(vel+pos-accel/2.0)>=abs(pos))){
      
-       float le=max(gn/1000.0,0.00001);//max(min((1.0-pow(0.5,1.0*apRat/100.0)),0.01),0.00001);//min(abs(vel*2.0+pos-0.5)/abs(pos-0.5)*0.001+0.00001,1.0);
+       float le=max(gn/10000.0,0.00001);//max(min((1.0-pow(0.5,1.0*apRat/100.0)),0.01),0.00001);//min(abs(vel*2.0+pos-0.5)/abs(pos-0.5)*0.001+0.00001,1.0);
        gnt=gnt;
        //gn=gnt*le+gn*(1.0-le);//+min(max(gnt-gn,-le),le);
        gn=gn+min(max(gnt-gn,-le),le);
@@ -312,7 +312,7 @@ getusermedia({ audio: true }, function (err, stream) {
      
      if(true||mod(float(t),1024.0*128.0)<1.0||abs(vel)>=abs(pos+abs(vel)*sign(pos))){
       
-       float d=0.001;//abs(pos+abs(vel)*s
+       float d=0.0001;//abs(pos+abs(vel)*s
      //cVa=(vec2(0.0,0.0)*d+cVa*(1.0-d));
  
      }
@@ -587,7 +587,7 @@ getusermedia({ audio: true }, function (err, stream) {
      alb=vec3(d>ssrg2?0.0:0.5);
      float plent=-d/ddI*min(res.x,res.y)/resp.x;//d/hsc*min(res.x,res.y);//-d/ddI*min(res.x,res.y)/resp.x;//occ2;//-d/ddI*max(res.x,res.y)/resp.x;
 
-     //alb=hsv2rgb(vec3(q,1.0,plent<20.0?0.5:0.0));
+     alb=hsv2rgb(vec3(q,1.0,d>ssrg2?1.0:0.0));
      vec4 wow =   occ* vec4(alb,0) + 2.5*vec4(0.9, 0.85, 0.8, 1)*spec;
      wow.xyz=alb;
      wow.w=1.0;
@@ -611,7 +611,7 @@ getusermedia({ audio: true }, function (err, stream) {
        omg.z=0.0;
      }
      //wow.xyz=omg;//floor(wow.xyz*2.0+0.5+(mod(cc2.x+cc2.y,2.0)/2.0-0.5)/2.0)/2.0;
-     wow.xyz=(occ* vec4(wow.xyz,0) + 2.5*vec4(0.9, 0.85, 0.8, 1)*spec).xyz;
+     wow.xyz=alb;//(occ* vec4(wow.xyz,0) + 2.5*vec4(0.9, 0.85, 0.8, 1)*spec).xyz;
 
      gl_FragColor=wow;
      #endif
